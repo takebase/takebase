@@ -1,0 +1,12 @@
+/AGENTS.md
+/.codegraph/
+
+# Firebase emulator logs, cache, exported state and private env files
+firebase-debug.log*
+database-debug.log*
+ui-debug.log*
+/.firebase/
+/emulator-data/
+/firebase/.env
+/firebase/.env.*
+!/firebase/.env.example
