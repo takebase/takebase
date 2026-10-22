@@ -10,3 +10,6 @@ ui-debug.log*
 /firebase/.env
 /firebase/.env.*
 !/firebase/.env.example
+
+# Local Wavelens review copies (published reviews live on the Multica issue)
+/reviews/
