@@ -169,6 +169,15 @@ importers:
       '@biomejs/biome':
         specifier: ^2.6.2
         version: 2.6.2
+      '@takebase/cli':
+        specifier: workspace:*
+        version: link:packages/cli
+      '@takebase/contracts':
+        specifier: workspace:*
+        version: link:packages/contracts
+      '@takebase/sdk':
+        specifier: workspace:*
+        version: link:packages/sdk
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -259,11 +268,25 @@ importers:
         specifier: ^4.151.3
         version: 4.151.3(@cloudflare/workers-types@5.20261021.1)(@types/node@26.6.5)
 
+  packages/cli:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+
+  packages/contracts: {}
+
   packages/core:
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+
+  packages/sdk:
+    dependencies:
+      '@takebase/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
 packages:
 

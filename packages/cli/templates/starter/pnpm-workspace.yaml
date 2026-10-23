@@ -1,0 +1,4 @@
+# Wrangler needs the esbuild and workerd install scripts (pnpm blocks unapproved build scripts).
+allowBuilds:
+  esbuild: true
+  workerd: true

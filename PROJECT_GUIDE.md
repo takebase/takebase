@@ -103,7 +103,7 @@ Verified CLI contracts/reads during bootstrap: `multica workspace get --output j
 
 Initially `git status --short` reported no Git repository. The human subsequently initialized Git; setup verified the correct root and HEAD `947297e24e4b596a7931aeb6f98a1153d67878ab`. Preserve that history. Wavelens is installed at `/Users/fernandoleal/.local/bin/wavelens`, but baseline/review functionality is not validated by setup. Wave 1-1 (SEGU-207) later exercised `begin`, `record`, and `preview --no-open --publish` successfully with the unprofiled Multica configuration (no `--profile`); `preview` also writes a local copy under `reviews/`, which is git-ignored. An implementation still requires its own matching pre-edit baseline. Jumbo is not initialized; bootstrap does not initialize it.
 
-No `takebase` (formerly `edgekit`) command in the product description is an installed or verified command. No application tests were run during setup. Validation outcomes belong to the setup issue, not claims of feature verification.
+At bootstrap no `takebase` (formerly `edgekit`) command in the product description was installed or verified; Wave 1-3 below adds only `init` and `create`. No application tests were run during setup. Validation outcomes belong to the setup issue, not claims of feature verification.
 
 Commands verified locally in Wave 1-1 (SEGU-207), run from the repository root with firebase-tools 15.34.0, OpenJDK 21 and Node 24.21.0:
 
@@ -111,6 +111,8 @@ Commands verified locally in Wave 1-1 (SEGU-207), run from the repository root w
 - `firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/bootstrap.test.ts'`
 
 These are local emulator checks only, not remote Firebase evidence.
+
+Commands verified locally in Wave 1-3 (SEGU-209), run from the repository root with Node 24.21.0 and pnpm 12.15.0: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm exec vitest run tests/cli/starter.test.ts tests/contracts/public-api.test.ts tests/architecture/boundaries.test.ts`, and the CLI itself via `node packages/cli/src/bin.ts --help` / `init` / `create`. Only `init` and `create` are implemented; every other `takebase` command group is planned and exits with "not implemented yet".
 
 ## Git branches and Gitea CI mapping
 

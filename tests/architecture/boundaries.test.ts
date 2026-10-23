@@ -16,6 +16,11 @@ type PackageJson = { dependencies?: Record<string, string>; devDependencies?: Re
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const wrangler = (dir: string) => parse(read(`${dir}/wrangler.jsonc`)) as WranglerConfig;
 const packageJson = (dir: string) => JSON.parse(read(`${dir}/package.json`)) as PackageJson;
+const dependencyNames = (dir: string) => {
+	const { dependencies = {}, devDependencies = {} } = packageJson(dir);
+	return Object.keys({ ...dependencies, ...devDependencies });
+};
+const runtimeDependencyNames = (dir: string) => Object.keys(packageJson(dir).dependencies ?? {});
 
 const global = wrangler("examples/workers/global");
 const tenant = wrangler("examples/workers/tenant");
@@ -58,7 +63,30 @@ describe("runtime boundaries", () => {
 	});
 
 	it("the frontend does not depend on the server framework", () => {
-		const { dependencies = {}, devDependencies = {} } = packageJson("examples/sveltekit");
-		expect(Object.keys({ ...dependencies, ...devDependencies })).not.toContain("@takebase/core");
+		expect(dependencyNames("examples/sveltekit")).not.toContain("@takebase/core");
+	});
+});
+
+describe("package boundaries", () => {
+	it("contracts has no dependencies", () => {
+		expect(dependencyNames("packages/contracts")).toEqual([]);
+	});
+
+	it("the SDK depends only on contracts", () => {
+		expect(dependencyNames("packages/sdk")).toEqual(["@takebase/contracts"]);
+	});
+
+	it("the CLI has no runtime dependencies and does not bundle the framework", () => {
+		expect(runtimeDependencyNames("packages/cli")).toEqual([]);
+		expect(dependencyNames("packages/cli")).not.toContain("@takebase/core");
+	});
+
+	it("only server packages may depend on Drizzle", () => {
+		for (const dir of ["packages/contracts", "packages/sdk", "packages/cli", "examples/sveltekit"]) {
+			expect(
+				dependencyNames(dir).filter((name) => name.startsWith("drizzle")),
+				dir,
+			).toEqual([]);
+		}
 	});
 });
