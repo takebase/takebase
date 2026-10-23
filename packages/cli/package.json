@@ -1,0 +1,26 @@
+{
+	"name": "@takebase/cli",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Takebase command-line interface",
+	"type": "module",
+	"bin": {
+		"takebase": "./src/bin.ts"
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"files": [
+		"src",
+		"templates"
+	],
+	"engines": {
+		"node": ">=24"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5"
+	}
+}

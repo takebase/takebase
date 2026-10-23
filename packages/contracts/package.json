@@ -1,0 +1,14 @@
+{
+	"name": "@takebase/contracts",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Takebase HTTP contracts shared by the framework, SDK and CLI",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit"
+	}
+}

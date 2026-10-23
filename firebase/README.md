@@ -1,6 +1,6 @@
 # Firebase local development (Auth + Realtime Database emulators)
 
-EdgeKit uses Firebase Auth for global identity and the Realtime Database (RTDB) only for
+Takebase uses Firebase Auth for global identity and the Realtime Database (RTDB) only for
 lightweight change notifications. This folder documents the **local, emulator-only**
 setup established in Wave 1-1 (SEGU-207). It is development/test infrastructure, not a
 hosted application: Firebase Hosting and Cloud Functions are intentionally not configured.
