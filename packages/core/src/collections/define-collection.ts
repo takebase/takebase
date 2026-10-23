@@ -2,6 +2,7 @@ import { getTableColumns, getTableName } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { CollectionRules } from "../rules/types.ts";
 import { serverOwnedFields } from "./columns.ts";
+import { compileListSpec, type FilterRules, type ListSpec } from "./query.ts";
 import { type CompiledRules, compileRules, type Messages, type ValidationRules } from "./validation.ts";
 
 export type CollectionOptions<Table extends SQLiteTable> = {
@@ -15,6 +16,10 @@ export type CollectionOptions<Table extends SQLiteTable> = {
 	// Message catalog and display names overriding the English defaults.
 	messages?: Messages;
 	attributes?: Record<string, string>;
+	// Fields a list may filter by, with their allowed operators, and fields it
+	// may sort by (spatie's allowedFilters/allowedSorts). Others return 400.
+	filters?: FilterRules;
+	sorts?: readonly string[];
 };
 
 export type CollectionDefinition<Table extends SQLiteTable = SQLiteTable> = {
@@ -24,6 +29,7 @@ export type CollectionDefinition<Table extends SQLiteTable = SQLiteTable> = {
 	readonly validation: CompiledRules;
 	readonly messages: Messages | undefined;
 	readonly attributes: Record<string, string> | undefined;
+	readonly list: ListSpec;
 };
 
 const namePattern = /^[a-z][a-z0-9_]{0,62}$/;
@@ -54,5 +60,6 @@ export const defineCollection = <Table extends SQLiteTable>(
 		validation: compileRules(options.validate),
 		messages: options.messages,
 		attributes: options.attributes,
+		list: compileListSpec(name, options.table, options.filters, options.sorts),
 	});
 };

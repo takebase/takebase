@@ -21,4 +21,13 @@ export const policiesCollection = defineCollection({
 		premium: "nullable|integer|min:0",
 		notes: "nullable|string|max:2000",
 	},
+	// Lists may filter and sort only by these; `holder` and `notes` stay private.
+	filters: {
+		number: ["eq", "in"],
+		status: ["eq", "ne", "in"],
+		agent_id: ["eq", "in", "null"],
+		premium: ["eq", "ne", "gt", "gte", "lt", "lte", "in", "null"],
+		created: ["gt", "gte", "lt", "lte"],
+	},
+	sorts: ["created", "updated", "number", "premium"],
 });

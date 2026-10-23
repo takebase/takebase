@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import type { CollectionRecord, ErrorEnvelope, ListEnvelope, UpdateInput } from "@takebase/contracts";
+import type { CollectionRecord, ErrorEnvelope, ListEnvelope, ListQuery, UpdateInput } from "@takebase/contracts";
 import * as contracts from "@takebase/contracts";
 import * as sdk from "@takebase/sdk";
 import { readResponse, TakebaseError } from "@takebase/sdk";
@@ -21,11 +21,30 @@ describe("@takebase/contracts public API", () => {
 			"collectionOperations",
 			"errorCodes",
 			"errorStatus",
+			"filterOperators",
 			"isErrorCode",
 			"isErrorEnvelope",
 			"isListEnvelope",
+			"maxPerPage",
+			"toListSearchParams",
 		]);
 		expect(contracts.collectionOperations).toEqual(["list", "view", "create", "update", "delete"]);
+		expect(contracts.filterOperators).toEqual(["eq", "ne", "gt", "gte", "lt", "lte", "in", "null"]);
+		expect(contracts.maxPerPage).toBe(100);
+	});
+
+	it("serializes list queries to the filter[field][operator] query string", () => {
+		type Fields = { status: "pending" | "active"; premium: number | null };
+		const query: ListQuery<Fields> = {
+			page: 2,
+			perPage: 20,
+			sort: "-created",
+			filter: { status: "active", premium: { gt: 0, in: [1, 2] }, id: null },
+		};
+		expect(contracts.toListSearchParams(query).toString()).toBe(
+			"page=2&perPage=20&sort=-created&filter%5Bstatus%5D=active&filter%5Bpremium%5D%5Bgt%5D=0&filter%5Bpremium%5D%5Bin%5D=1%2C2&filter%5Bid%5D%5Bnull%5D=true",
+		);
+		expect(contracts.toListSearchParams().toString()).toBe("");
 	});
 
 	it("maps every error code to an HTTP error status", () => {
@@ -60,8 +79,8 @@ describe("@takebase/contracts public API", () => {
 });
 
 describe("@takebase/sdk public API", () => {
-	it("exports the error type and response reader", () => {
-		expect(Object.keys(sdk).sort()).toEqual(["TakebaseError", "readResponse"]);
+	it("exports the client factory, error type and response reader", () => {
+		expect(Object.keys(sdk).sort()).toEqual(["TakebaseError", "createClient", "readResponse"]);
 	});
 
 	it("returns successful JSON bodies", async () => {
@@ -78,7 +97,7 @@ describe("@takebase/sdk public API", () => {
 	it("maps responses without an envelope to a generic error", async () => {
 		await expect(readResponse(new Response("oops", { status: 502 }))).rejects.toMatchObject({ code: "internal" });
 		await expect(readResponse(new Response("oops", { status: 404 }))).rejects.toMatchObject({ code: "bad_request" });
-		await expect(readResponse(new Response("not json"))).rejects.toMatchObject({ code: "internal" });
+		await expect(readResponse(new Response("not json"))).rejects.toMatchObject({ code: "invalid_response" });
 	});
 });
 

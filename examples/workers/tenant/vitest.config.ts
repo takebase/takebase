@@ -15,7 +15,9 @@ const tenantProject = (environment: "tenant-a" | "tenant-b") => ({
 			},
 		}),
 	],
-	test: { name: environment, setupFiles: ["./test/apply-migrations.ts"] },
+	// The first request starts workerd and local D1; on a busy CI runner that can
+	// exceed vitest's 5 s default.
+	test: { name: environment, setupFiles: ["./test/apply-migrations.ts"], testTimeout: 20_000 },
 });
 
 export default defineConfig({

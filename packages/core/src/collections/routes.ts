@@ -6,6 +6,7 @@ import type { AuthIdentity } from "../rules/types.ts";
 import { createCollectionsService, recordExists } from "../services/collections-d1-service.ts";
 import { type AnyD1Database, isConstraintError } from "../storage/d1.ts";
 import type { CollectionDefinition } from "./define-collection.ts";
+import { ListQueryError, parseListQuery } from "./query.ts";
 import type { CollectionRegistry } from "./registry.ts";
 import { type DatabaseLookup, type ValidationMode, validate } from "./validation.ts";
 
@@ -17,8 +18,6 @@ export type CollectionRoutesOptions = {
 	resolve: () => CollectionRequest;
 };
 
-const defaultPerPage = 30;
-const maxPerPage = 100;
 const recordIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const fail = (c: Context, code: ErrorCode, message: string, fields?: FieldErrors) =>
@@ -31,12 +30,6 @@ class RequestError extends Error {
 		this.code = code;
 	}
 }
-
-const parsePositiveInt = (value: string | undefined, fallback: number, name: string) => {
-	if (value === undefined) return fallback;
-	if (!/^[1-9]\d{0,6}$/.test(value)) throw new RequestError("bad_request", `"${name}" must be a positive integer`);
-	return Number(value);
-};
 
 const readBody = async (c: Context) => {
 	let body: unknown;
@@ -109,14 +102,8 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 	};
 
 	routes.get("/api/collections/:collection/records", async (c) => {
-		const { service } = await authorize(c, "list");
-		if (c.req.query("filter") !== undefined || c.req.query("sort") !== undefined) {
-			throw new RequestError("bad_request", "Filtering and sorting are not supported yet");
-		}
-		const page = parsePositiveInt(c.req.query("page"), 1, "page");
-		const perPage = parsePositiveInt(c.req.query("perPage"), defaultPerPage, "perPage");
-		if (perPage > maxPerPage) throw new RequestError("bad_request", `"perPage" must be at most ${maxPerPage}`);
-		return c.json(await service.list({ page, perPage }));
+		const { definition, service } = await authorize(c, "list");
+		return c.json(await service.list(parseListQuery(new URL(c.req.url).searchParams, definition.list)));
 	});
 
 	routes.get("/api/collections/:collection/records/:id", async (c) => {
@@ -149,6 +136,7 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 	// Stable envelopes for every failure; storage details never reach the client.
 	routes.onError((error, c) => {
 		if (error instanceof RequestError) return fail(c, error.code, error.message);
+		if (error instanceof ListQueryError) return fail(c, "bad_request", error.message);
 		if (isConstraintError(error)) return fail(c, "conflict", "The record conflicts with an existing record");
 		return fail(c, "internal", "Internal error");
 	});
