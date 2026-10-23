@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - examples/workers/*
+  - examples/sveltekit
+allowBuilds:
+  esbuild: true
+  workerd: true
