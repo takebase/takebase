@@ -1,0 +1,21 @@
+{
+	"name": "takebase",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "pnpm -r --if-present typecheck && tsc --noEmit -p tsconfig.json",
+		"test": "pnpm -r --if-present test && vitest run",
+		"build": "pnpm -r --if-present build",
+		"test:firebase": "firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/bootstrap.test.ts'"
+	},
+	"packageManager": "pnpm@12.15.0",
+	"devDependencies": {
+		"@biomejs/biome": "^2.6.2",
+		"@types/node": "^26.6.5",
+		"jsonc-parser": "^3.3.1",
+		"typescript": "^6.0.3",
+		"vitest": "^5.0.5"
+	}
+}

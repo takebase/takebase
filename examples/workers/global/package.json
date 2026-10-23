@@ -1,0 +1,23 @@
+{
+	"name": "@takebase/example-global",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy --minify",
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"build": "wrangler deploy --dry-run --outdir dist",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@takebase/core": "workspace:*",
+		"hono": "^4.13.13"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.4.6",
+		"@types/node": "^26.6.5",
+		"vitest": "^5.0.5",
+		"wrangler": "^4.151.3"
+	}
+}

@@ -13,3 +13,11 @@ ui-debug.log*
 
 # Local Wavelens review copies (published reviews live on the Multica issue)
 /reviews/
+
+# Build output
+dist/
+
+# Dependencies and local runtime state
+node_modules/
+.wrangler/
+.DS_Store

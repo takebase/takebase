@@ -1,0 +1,6 @@
+import { defineConfig } from "vitest/config";
+
+// Root-level checks only; each package runs its own suite via `pnpm -r test`.
+export default defineConfig({
+	test: { include: ["tests/architecture/**/*.test.ts"] },
+});
