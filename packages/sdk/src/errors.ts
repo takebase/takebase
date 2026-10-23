@@ -1,14 +1,27 @@
 import { type ErrorCode, type FieldErrors, isErrorEnvelope } from "@takebase/contracts";
 
+// Failures that happen in the client, without an error envelope from a Worker:
+// the request never got a response, was aborted, or the response was unusable.
+export type ClientErrorCode = "network" | "aborted" | "invalid_response";
+
+export type TakebaseErrorCode = ErrorCode | ClientErrorCode;
+
 // Thrown for every failed Takebase request, whether the Worker sent an error
-// envelope or the response could not be interpreted.
+// envelope or the response could not be interpreted. `status` is 0 when no
+// HTTP response was received.
 export class TakebaseError extends Error {
 	readonly status: number;
-	readonly code: ErrorCode;
+	readonly code: TakebaseErrorCode;
 	readonly fields: FieldErrors;
 
-	constructor(status: number, code: ErrorCode, message: string, fields: FieldErrors = {}) {
-		super(message);
+	constructor(
+		status: number,
+		code: TakebaseErrorCode,
+		message: string,
+		fields: FieldErrors = {},
+		options?: ErrorOptions,
+	) {
+		super(message, options);
 		this.name = "TakebaseError";
 		this.status = status;
 		this.code = code;
@@ -28,7 +41,8 @@ const readJson = async (response: Response): Promise<unknown> => {
 export const readResponse = async <Body>(response: Response): Promise<Body> => {
 	const body = await readJson(response);
 	if (response.ok) {
-		if (body === undefined) throw new TakebaseError(response.status, "internal", "Response body is not valid JSON");
+		if (body === undefined)
+			throw new TakebaseError(response.status, "invalid_response", "Response body is not valid JSON");
 		return body as Body;
 	}
 	if (isErrorEnvelope(body)) {
