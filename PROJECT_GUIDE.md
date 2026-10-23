@@ -32,11 +32,12 @@ Use the installed CLI's `--help` contract. Prefer direct CLI arguments and suppo
 
 At bootstrap on 2026-10-19, this folder contained only `.codegraph/`. There was no Git repository, HEAD, package manifest, README, application component, component `AGENTS.md`, existing local skill or project OpenCode configuration. Setup adds guidance only. Recheck current files before relying on this historical observation.
 
-Observed at the 2026-10-19 guidance refresh (all uncommitted on HEAD `947297e`):
+Observed on `master` at merge commit `20349c8` (2026-10-23), after Waves 1-1 to 1-3 merged:
 
 - Firebase Auth/RTDB emulator configuration from Wave 1-1 (SEGU-207) at the repository root: `firebase.json`, `.firebaserc` (demo aliases only), `database.rules.json` (deny all), plus `firebase/README.md`, `firebase/.env.example` and `tests/firebase/bootstrap.test.ts`. The root layout comes from `firebase init database --project demo-takebase --non-interactive`; `firebase init emulators` is interactive-only.
 - An untracked `functions/` Cloud Functions scaffold left by an earlier interactive `firebase init` was deleted at the human's request on 2026-10-22. Cloud Functions is not a Takebase component.
-- No root package manifest, Cloudflare Worker or other application component yet.
+- Wave 1-2 (SEGU-208, PR #1): the root pnpm workspace (`package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `tsconfig.json`, `biome.json`, `vitest.config.ts`), `packages/core` (request store), the Worker examples `examples/workers/global` and `examples/workers/tenant` (each with its own `wrangler.jsonc`, `src/index.ts`, `src/context.ts`, `src/request-store.ts`), the SvelteKit example `examples/sveltekit`, empty `migrations/global` and `migrations/tenant`, and Gitea CI at `.gitea/workflows/ci.yml`.
+- Wave 1-3 (SEGU-209, PR #4): `packages/contracts`, `packages/sdk` and `packages/cli` (with `templates/starter`), plus `tests/cli`, `tests/contracts` and `tests/architecture`.
 
 The Takebase monorepo tree and CLI in the Multica project description are **planned product structure and capabilities**, not implemented components or verified commands. No application directories or commands are established by bootstrap. Read the complete project description when planning authorized work; do not silently discard its folder tree, CLI capabilities or examples.
 
@@ -87,7 +88,7 @@ Segutrends status keys observed on 2026-10-19 (`multica issue status` rejects un
 
 ## Conditional Worker coding conventions
 
-The project targets Workers, but none exist yet. These rules apply when a separately authorized Worker component is present; bootstrap does not add source or compatibility flags.
+The example Workers under `examples/workers/` (Wave 1-2) follow these rules. Apply them to any Worker component that already exists or that separately authorized work adds; bootstrap does not add source or compatibility flags.
 
 - Prefer arrow functions. Platform-required `WorkerEntrypoint`, `WorkflowEntrypoint` and `DurableObject` class methods build context and delegate to arrow functions.
 - Keep one central export point per Worker at its verified Wrangler main (`src/index.ts` when appropriate); implementation lives in exported modules.

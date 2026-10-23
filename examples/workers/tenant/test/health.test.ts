@@ -14,7 +14,7 @@ describe("tenant Worker", () => {
 		expect(["tenant-a", "tenant-b"]).toContain(env.TENANT_ID);
 	});
 
-	it("does not expose collection routes yet", async () => {
+	it("returns not found for collections it does not define", async () => {
 		const response = await exports.default.fetch("https://tenant.local/api/collections/posts/records");
 		expect(response.status).toBe(404);
 	});

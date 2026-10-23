@@ -14,5 +14,10 @@
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.5"
+	},
+	"dependencies": {
+		"@takebase/contracts": "workspace:*",
+		"drizzle-orm": "0.45.4",
+		"hono": "^4.13.13"
 	}
 }

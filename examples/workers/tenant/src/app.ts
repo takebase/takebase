@@ -1,4 +1,6 @@
+import { createCollectionRoutes } from "@takebase/core";
 import { Hono } from "hono";
+import { collections } from "./collections/index.ts";
 import { createContext } from "./context.ts";
 import { runInRequest, useContext } from "./request-store.ts";
 
@@ -15,3 +17,14 @@ app.get("/health", async (c) => {
 	const { service, tenantId } = useContext();
 	return c.json({ service, tenantId, status: "ok", database: (await checkDatabase()) ? "ok" : "error" });
 });
+
+app.route(
+	"/",
+	createCollectionRoutes({
+		registry: collections,
+		resolve: () => {
+			const { db, auth, now } = useContext();
+			return { db, auth, now };
+		},
+	}),
+);
