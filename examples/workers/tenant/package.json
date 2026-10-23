@@ -5,6 +5,7 @@
 	"scripts": {
 		"dev": "wrangler dev",
 		"deploy": "wrangler deploy --minify",
+		"db:generate": "drizzle-kit generate",
 		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
 		"build": "wrangler deploy --dry-run --outdir dist",
 		"typecheck": "tsc --noEmit",
@@ -12,11 +13,14 @@
 	},
 	"dependencies": {
 		"@takebase/core": "workspace:*",
+		"drizzle-orm": "0.45.4",
 		"hono": "^4.13.13"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "^1.4.6",
+		"@takebase/contracts": "workspace:*",
 		"@types/node": "^26.6.5",
+		"drizzle-kit": "0.31.11",
 		"vitest": "^5.0.5",
 		"wrangler": "^4.151.3"
 	}
