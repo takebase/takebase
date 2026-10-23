@@ -10,13 +10,6 @@
 		"build": "pnpm -r --if-present build",
 		"test:firebase": "firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/bootstrap.test.ts'"
 	},
-	"devEngines": {
-		"packageManager": {
-			"name": "pnpm",
-			"version": "12.15.0",
-			"onFail": "download"
-		}
-	},
 	"packageManager": "pnpm@12.15.0",
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.2",
