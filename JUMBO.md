@@ -4,8 +4,8 @@ Read `PROJECT_GUIDE.md` for verified project identity and workflow. This file co
 
 ## Accepted architectural direction
 
-- Takebase tracks the EdgeKit framework initiative described in its Multica project description.
-- EdgeKit is TypeScript/Hono on Cloudflare Workers with independent D1 persistence per tenant, internal Drizzle schemas and Drizzle Kit migrations.
+- Takebase (earlier called EdgeKit) is the framework described in its Multica project description.
+- Takebase is TypeScript/Hono on Cloudflare Workers with independent D1 persistence per tenant, internal Drizzle schemas and Drizzle Kit migrations.
 - Firebase Auth supplies global identity. The global Worker/D1 discovers tenants and memberships; the SDK routes to the selected tenant Worker.
 - Collection authorization is typed, server-enforced and deny-by-default. The SDK is never an authorization boundary.
 - D1 is authoritative. Firebase RTDB carries lightweight notifications, not complete records; an atomic tenant-D1 outbox supports asynchronous, retryable, at-least-once delivery and authorized refetch.

@@ -5,7 +5,7 @@
 - Multica project: **Takebase** (`6f84dfa1-a433-4994-bcc1-9a79819f297f`).
 - Workspace: **Segutrends** (`237ef0f7-262b-4830-9d1a-c86b40b59fda`).
 - Attached local project root: `/Volumes/Workspace/dev-drakecall/node/takebase`.
-- Product described by the project: **EdgeKit**, a Cloudflare-native, PocketBase-inspired backend framework. Takebase is the tracking project name; do not silently rename either.
+- Product: **Takebase**, a Cloudflare-native, PocketBase-inspired backend framework. Project and product share the name (npm scope `@takebase`, repository `takebase/takebase`). Older text calling it EdgeKit refers to the same product.
 - Bootstrap audit: **SEGU-206**. Existing product umbrella: **SEGU-205**. Neither selects or authorizes an implementation wave.
 - CLI reads during bootstrap used the existing default profile with no profile override. Resolve the actual profile for each implementation handoff; never invent a profile name.
 
@@ -38,7 +38,7 @@ Observed at the 2026-10-19 guidance refresh (all uncommitted on HEAD `947297e`):
 - An untracked `functions/` Cloud Functions scaffold left by an earlier interactive `firebase init` was deleted at the human's request on 2026-10-22. Cloud Functions is not a Takebase component.
 - No root package manifest, Cloudflare Worker or other application component yet.
 
-The EdgeKit monorepo tree and CLI in the Multica project description are **planned product structure and capabilities**, not implemented components or verified commands. No application directories or commands are established by bootstrap. Read the complete project description when planning authorized work; do not silently discard its folder tree, CLI capabilities or examples.
+The Takebase monorepo tree and CLI in the Multica project description are **planned product structure and capabilities**, not implemented components or verified commands. No application directories or commands are established by bootstrap. Read the complete project description when planning authorized work; do not silently discard its folder tree, CLI capabilities or examples.
 
 For any component created with an official platform generator, preserve its established layout, entry points, configuration, scripts, tests, emulators and deployment mechanisms. Discover actual components; do not assume an `apps/` layout or pre-existing Cloudflare/Firebase setup. Do not collapse components into a single file, move entry points or invent parallel build/run/deploy tooling. Reinitialization, overwriting generated configuration or departing from established platform structure requires explicit human approval. Use official generators only for separately authorized scaffolding.
 
@@ -79,7 +79,7 @@ The human's request to plan or implement a selected issue authorizes routine sta
 - In Review when a required human acceptance or authorized delivery step is pending.
 - Blocked/Error for a concrete unresolved prerequisite or failed required check.
 
-Do not mark an unfinished issue Done at a section checkpoint, close an unfinished parent when one child completes, or start another issue automatically. Planning alone does not complete an implementation issue. A local issue can reach Done without a commit. If agreed completion includes Git delivery, CI, merge, or deployment, those explicitly authorized requirements must be satisfied first. Git actions and deployment still require their matching human request.
+Do not mark an unfinished issue Done at a section checkpoint, close an unfinished parent when one child completes, or start another issue automatically. Planning alone does not complete an implementation issue. A local issue can reach Done without a commit. An issue that ships code closes on merge: after its branch is pushed and CI passes on the exact commit, it is In Review while its pull request to `master` is open, and Done only after the PR is merged, recording the PR link and merge commit. Passing CI alone never makes it Done; the CI callback never changes status. If agreed completion includes Git delivery, CI, merge, or deployment, those explicitly authorized requirements must be satisfied first. Git actions and deployment still require their matching human request.
 
 Wavelens publication itself does not change status. After verifying the review attachment, the current session updates the issue separately through Multica under this standing lifecycle rule.
 
@@ -103,7 +103,7 @@ Verified CLI contracts/reads during bootstrap: `multica workspace get --output j
 
 Initially `git status --short` reported no Git repository. The human subsequently initialized Git; setup verified the correct root and HEAD `947297e24e4b596a7931aeb6f98a1153d67878ab`. Preserve that history. Wavelens is installed at `/Users/fernandoleal/.local/bin/wavelens`, but baseline/review functionality is not validated by setup. Wave 1-1 (SEGU-207) later exercised `begin`, `record`, and `preview --no-open --publish` successfully with the unprofiled Multica configuration (no `--profile`); `preview` also writes a local copy under `reviews/`, which is git-ignored. An implementation still requires its own matching pre-edit baseline. Jumbo is not initialized; bootstrap does not initialize it.
 
-No `edgekit` command in the product description is an installed or verified command. No application tests were run during setup. Validation outcomes belong to the setup issue, not claims of feature verification.
+No `takebase` (formerly `edgekit`) command in the product description is an installed or verified command. No application tests were run during setup. Validation outcomes belong to the setup issue, not claims of feature verification.
 
 Commands verified locally in Wave 1-1 (SEGU-207), run from the repository root with firebase-tools 15.34.0, OpenJDK 21 and Node 24.21.0:
 
@@ -116,7 +116,7 @@ These are local emulator checks only, not remote Firebase evidence.
 
 The Git default branch is `master` (not `main`). Remote `origin` is the Gitea repository `ssh://git@gitea.home.lan:2222/takebase/takebase.git`; Gitea runs CI and push-mirrors to GitHub.
 
-Commit each issue's work on its own branch named `feature/<ISSUE-KEY>-<short-description>`, for example `feature/SEGU-208-scaffold-workspace`. Use the exact Multica issue key as shown (uppercase prefix, e.g. `SEGU-208`) followed by a short lowercase kebab-case description. Gitea Actions results for the branch are reported back to that Multica issue through the key, so never omit or alter it. Create the branch from current `master` when authorized delivery starts; do not commit issue work directly to `master`. Every commit subject starts with the issue key: `<ISSUE-KEY>: <imperative summary>` (e.g. `SEGU-208: Scaffold the pnpm workspace`). Wavelens reviews stay attached to the Multica issue only; `/reviews/` is git-ignored and never committed. Pushing, opening a pull request and merging to `master` each still require the matching human request.
+Commit each issue's work on its own branch named `feature/<ISSUE-KEY>-<short-description>`, for example `feature/SEGU-208-scaffold-workspace`. Use the exact Multica issue key as shown (uppercase prefix, e.g. `SEGU-208`) followed by a short lowercase kebab-case description. Gitea Actions results for the branch are reported back to that Multica issue through the key, so never omit or alter it. Create the branch from current `master` when authorized delivery starts; do not commit issue work directly to `master`. Every commit subject starts with the issue key: `<ISSUE-KEY>: <imperative summary>` (e.g. `SEGU-208: Scaffold the pnpm workspace`). Wavelens reviews stay attached to the Multica issue only; `/reviews/` is git-ignored and never committed. Feature branches land on `master` through a Gitea pull request whose title carries the issue key, never by pushing or merging directly to `master`. Pushing, opening a pull request and merging to `master` each still require the matching human request.
 
 ## Durable instruction ownership
 

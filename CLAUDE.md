@@ -42,13 +42,13 @@ The human's request to plan or implement a selected issue authorizes routine sta
 - In Review when a required human acceptance or authorized delivery step is pending.
 - Blocked/Error for a concrete unresolved prerequisite or failed required check.
 
-Do not mark an unfinished issue Done at a section checkpoint, close an unfinished parent when one child completes, or start another issue automatically. Planning alone does not complete an implementation issue. A local issue can reach Done without a commit. If agreed completion includes Git delivery, CI, merge, or deployment, those explicitly authorized requirements must be satisfied first. Git actions and deployment still require their matching human request.
+Do not mark an unfinished issue Done at a section checkpoint, close an unfinished parent when one child completes, or start another issue automatically. Planning alone does not complete an implementation issue. A local issue can reach Done without a commit. An issue that ships code closes on merge: after its branch is pushed and CI passes on the exact commit, it is In Review while its pull request to `master` is open, and Done only after the PR is merged, recording the PR link and merge commit. Passing CI alone never makes it Done. If agreed completion includes Git delivery, CI, merge, or deployment, those explicitly authorized requirements must be satisfied first. Git actions and deployment still require their matching human request.
 
 Wavelens publication itself does not change status. After verifying the review attachment, the current session updates the issue separately through Multica under this standing lifecycle rule.
 
 ## Respect each platform's default project structure
 
-For each component created with a platform's official init tool, preserve that tool's layout and conventions so its CLI, emulators, tests, and deploy commands continue to work. Discover the components actually present; do not assume this project uses any fixed component folder. EdgeKit's planned stack does not establish an existing implementation.
+For each component created with a platform's official init tool, preserve that tool's layout and conventions so its CLI, emulators, tests, and deploy commands continue to work. Discover the components actually present; do not assume this project uses any fixed component folder. Takebase's planned stack does not establish an existing implementation.
 
 - Before adding code, inspect the component's existing layout, configuration, package scripts, entry points, and applicable instructions. Put new code where the established structure expects it.
 - Use the platform's own configuration, generation, run, test, and deploy mechanisms. For a Cloudflare component, this may include Wrangler bindings/environments and the existing type-generation script. For a Firebase component, this may include configured targets, the functions package, and rules/index files. Use only paths and commands verified in the current project.

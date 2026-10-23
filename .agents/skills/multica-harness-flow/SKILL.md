@@ -22,7 +22,7 @@ Statuses describe work, not authorization:
 - Planning: active OpenCode conversation; Awaiting Approval: agreed plan awaiting selection.
 - Building/In Progress: selected implementation; In Review: ready for human inspection.
 - Error when available, otherwise Blocked: failed push/required CI or concrete prerequisite.
-- Done: human-authorized acceptance after agreed exact-SHA delivery checks; record any explicitly accepted exception honestly.
+- Done: acceptance criteria met and, for code, the PR to `master` merged after exact-SHA CI passed (In Review while the PR is open); record any explicitly accepted exception honestly.
 
 Use the authenticated Multica CLI with resolved workspace/project/issue; JSON and bounded reads. Long descriptions/comments use temporary UTF-8 transport files, not planning artifacts. If stale repository runtime context blocks record operations, use a neutral directory with explicit existing profile/workspace; do not delete runtime metadata. Local source work stays in the selected repository. Do not edit unrelated issues or silently broaden permissions.
 
@@ -34,4 +34,4 @@ Direct CLI recordkeeping is allowed; no-dispatch rules prohibit additional AI ru
 
 Use CodeGraph when indexed and codebase-memory-mcp for code discovery; text/direct reads are fallbacks for configs/docs and graph gaps. Keep official platform structure and verified commands; ask before reinit, generated-config replacement or structural departures. Use official generators for authorized scaffolding only. For actual Worker components, follow PROJECT_GUIDE.md/CLAUDE.md's arrow-function/platform-method, central-export/composition-root, typed AsyncLocalStorage request-scope and mutable-state isolation conventions; never assume a Worker root or silently migrate code/config.
 
-At each human-agreed section checkpoint and full wave, publish the exact review/patch and post changes, passed/failed/unavailable checks and remaining work. Stop for human review. All status transitions require an explicit human request, separate from implementation approval; publication never changes status. No next-wave execution, delivery or closure without corresponding authority. Root AGENTS.md remains temporary; never create/edit/delete/restore/stage/commit it as durable guidance.
+At each human-agreed section checkpoint and full wave, publish the exact review/patch and post changes, passed/failed/unavailable checks and remaining work. Stop for human review. The human's request to plan or implement the selected issue authorizes its routine transitions under the PROJECT_GUIDE.md lifecycle; verify each saved update. Publication never changes status. No next-wave execution, delivery or closure without corresponding authority. Root AGENTS.md remains temporary; never create/edit/delete/restore/stage/commit it as durable guidance.
