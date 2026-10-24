@@ -18,10 +18,14 @@ import {
 } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { FilterCondition, ParsedListQuery, SortTerm } from "../collections/query.ts";
+import { outboxEntry, outboxEntryIfExists } from "../realtime/events.ts";
+import { outbox } from "../realtime/outbox.ts";
 import { type AnyD1Database, createDatabase } from "../storage/d1.ts";
 
 // All SQL for collection records lives here; routes only call these functions.
-// Every write is one statement, so D1 applies it atomically or not at all.
+// Every write runs in one D1 batch with its outbox event. D1 executes a batch
+// as a single SQLite transaction, so the change and its event commit together
+// or, if any statement fails, neither does.
 
 type TableColumns = Record<string, SQLiteColumn> & { id: SQLiteColumn; created: SQLiteColumn };
 
@@ -41,7 +45,8 @@ const toOrderBy = (sort: SortTerm[], columns: TableColumns) => {
 	return sort.some(({ field }) => field === "id") ? order : [...order, asc(columns.id)];
 };
 
-export const createCollectionsService = (d1: AnyD1Database, table: SQLiteTable, now: Date) => {
+// `collection` names the events written to the outbox.
+export const createCollectionsService = (d1: AnyD1Database, table: SQLiteTable, collection: string, now: Date) => {
 	const db = createDatabase(d1);
 	const columns = getTableColumns(table) as TableColumns;
 	const byId = (id: string) => eq(columns.id, id);
@@ -78,21 +83,32 @@ export const createCollectionsService = (d1: AnyD1Database, table: SQLiteTable, 
 
 	const create = async (data: Record<string, unknown>) => {
 		const values = { ...data, id: crypto.randomUUID(), created: timestamp, updated: timestamp };
-		const [record] = await db.insert(table).values(values).returning();
+		const [[record]] = await db.batch([
+			db.insert(table).values(values).returning(),
+			db.insert(outbox).values(outboxEntry(collection, "create", values.id, now)),
+		]);
 		return record as CollectionRecord;
 	};
 
+	// The event is inserted only if the record exists, so a missing id writes nothing.
 	const update = async (id: string, data: Record<string, unknown>) => {
-		const [record] = await db
-			.update(table)
-			.set({ ...data, updated: timestamp })
-			.where(byId(id))
-			.returning();
-		return (record as CollectionRecord | undefined) ?? null;
+		const [records] = await db.batch([
+			db
+				.update(table)
+				.set({ ...data, updated: timestamp })
+				.where(byId(id))
+				.returning(),
+			outboxEntryIfExists(db, outboxEntry(collection, "update", id, now), table, columns.id),
+		]);
+		return (records[0] as CollectionRecord | undefined) ?? null;
 	};
 
+	// The event goes first, while the record still exists to match it.
 	const remove = async (id: string) => {
-		const deleted = await db.delete(table).where(byId(id)).returning({ id: columns.id });
+		const [, deleted] = await db.batch([
+			outboxEntryIfExists(db, outboxEntry(collection, "delete", id, now), table, columns.id),
+			db.delete(table).where(byId(id)).returning({ id: columns.id }),
+		]);
 		return deleted.length > 0;
 	};
 

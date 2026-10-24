@@ -70,7 +70,7 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 			);
 		}
 		const context: HookContext = Object.freeze({ auth: request.auth, collection: definition.name });
-		const service = createCollectionsService(request.db, definition.table, request.now);
+		const service = createCollectionsService(request.db, definition.table, definition.name, request.now);
 		return { definition, db: request.db, service, context };
 	};
 
