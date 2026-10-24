@@ -273,6 +273,9 @@ importers:
       '@takebase/contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@takebase/firebase-rtdb':
+        specifier: workspace:*
+        version: link:../../../packages/firebase-rtdb
       '@takebase/sdk':
         specifier: workspace:*
         version: link:../../../packages/sdk
@@ -308,6 +311,12 @@ importers:
       hono:
         specifier: ^4.13.13
         version: 4.13.13
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
+
+  packages/firebase-rtdb:
     devDependencies:
       '@types/node':
         specifier: ^26.6.5

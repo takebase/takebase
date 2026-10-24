@@ -8,7 +8,8 @@
 		"typecheck": "pnpm -r --if-present typecheck && tsc --noEmit -p tsconfig.json",
 		"test": "pnpm -r --if-present test && vitest run",
 		"build": "pnpm -r --if-present build",
-		"test:firebase": "firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/bootstrap.test.ts'"
+		"test:firebase": "firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/bootstrap.test.ts'",
+		"test:firebase-rtdb": "firebase emulators:exec --only auth,database --project demo-takebase 'pnpm --filter @takebase/firebase-rtdb exec vitest run test/emulator.test.ts'"
 	},
 	"packageManager": "pnpm@12.15.0",
 	"devDependencies": {

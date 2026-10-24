@@ -19,6 +19,7 @@
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "^1.4.6",
 		"@takebase/contracts": "workspace:*",
+		"@takebase/firebase-rtdb": "workspace:*",
 		"@takebase/sdk": "workspace:*",
 		"@types/node": "^26.6.5",
 		"drizzle-kit": "0.31.11",
