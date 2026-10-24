@@ -10,7 +10,8 @@ import type { AuthIdentity } from "../rules/types.ts";
 //   the write after them can still fail.
 // - created/updated/deleted run only after the write succeeded (Laravel's
 //   afterCommit). That is the place for side effects; a failure there is
-//   logged and never changes the committed response.
+//   logged and never changes the committed response. The change's outbox
+//   event is already committed with the write, so it never depends on them.
 
 export type HookData = Record<string, unknown>;
 

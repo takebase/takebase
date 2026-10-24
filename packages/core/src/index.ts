@@ -39,6 +39,9 @@ export type {
 	ValidationRules,
 } from "./collections/validation.ts";
 export { compileRules, defaultMessages, formatMessage, validate } from "./collections/validation.ts";
+export type { OutboxRow } from "./realtime/events.ts";
+export { toRecordChangeEvent } from "./realtime/events.ts";
+export { outbox, outboxOperations, outboxStatuses } from "./realtime/outbox.ts";
 export type { RequestLocalsAccess, RequestStore } from "./request-store.ts";
 export { createRequestStore } from "./request-store.ts";
 export { authorize } from "./rules/authorize.ts";
@@ -50,5 +53,7 @@ export type { CollectionsService } from "./services/collections-d1-service.ts";
 export { createCollectionsService, recordExists } from "./services/collections-d1-service.ts";
 export type { MembershipsService } from "./services/memberships-d1-service.ts";
 export { createMembershipsService } from "./services/memberships-d1-service.ts";
+export type { ClaimOptions, OutboxService, RetryOptions } from "./services/outbox-d1-service.ts";
+export { createOutboxService } from "./services/outbox-d1-service.ts";
 export type { AnyD1Database } from "./storage/d1.ts";
 export { memberships, tenantStatuses, tenants } from "./tenancy/schema.ts";
