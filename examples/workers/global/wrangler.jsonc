@@ -8,6 +8,10 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-10-19",
 	"compatibility_flags": ["nodejs_als"],
+	// The Firebase project whose ID tokens this Worker accepts. A demo-* project
+	// only ever talks to the local Auth emulator; a real deployment sets its own.
+	// Emulator trust (TAKEBASE_AUTH_EMULATOR) is never configured here.
+	"vars": { "FIREBASE_PROJECT_ID": "demo-takebase" },
 	// Local-only identifiers: no remote D1 database is required for development or tests.
 	"d1_databases": [
 		{

@@ -1,8 +1,7 @@
 import { authenticated, defineCollection } from "@takebase/core";
 import { policies } from "../schema/policies.ts";
 
-// Requires an identity for every operation. Workers resolve none until
-// Firebase identity arrives (Wave 3), so this collection is closed for now.
+// Requires a verified member of this tenant for every operation.
 export const policiesCollection = defineCollection({
 	table: policies,
 	rules: {

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { createContext } from "./context.ts";
 import { runInRequest, useContext } from "./request-store.ts";
+import { tenantRoutes } from "./routes/tenants.ts";
 
 const checkDatabase = async () => {
 	const row = await useContext().db.prepare("select 1 as ok").first<{ ok: number }>();
@@ -15,3 +16,5 @@ app.get("/health", async (c) => {
 	const { service } = useContext();
 	return c.json({ service, status: "ok", database: (await checkDatabase()) ? "ok" : "error" });
 });
+
+app.route("/api/tenants", tenantRoutes);

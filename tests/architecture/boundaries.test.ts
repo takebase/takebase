@@ -3,7 +3,8 @@ import { parse } from "jsonc-parser";
 import { describe, expect, it } from "vitest";
 
 type D1Binding = { binding: string; database_name: string; database_id: string };
-type WranglerEnv = { d1_databases?: D1Binding[]; vars?: Record<string, string> };
+type ServiceBinding = { binding: string; service: string; entrypoint?: string };
+type WranglerEnv = { d1_databases?: D1Binding[]; services?: ServiceBinding[]; vars?: Record<string, string> };
 type WranglerConfig = WranglerEnv & {
 	main: string;
 	compatibility_flags?: string[];
@@ -55,6 +56,18 @@ describe("runtime boundaries", () => {
 		for (const databases of tenantDatabases) expect(databases.map((db) => db.binding)).toEqual(["DB"]);
 		expect(new Set(allIds).size).toBe(allIds.length);
 		for (const id of allIds) expect(id).toMatch(/^local-/);
+	});
+
+	it("tenants reach the global Worker only over a service binding, and no config trusts the Auth emulator", () => {
+		for (const env of [tenant, ...Object.values(tenant.env ?? {})]) {
+			expect(env.services).toEqual([{ binding: "GLOBAL", service: global.name, entrypoint: "MembershipEntrypoint" }]);
+			expect(Object.keys(env.vars ?? {})).toEqual(["TENANT_ID"]);
+		}
+		for (const config of [global, tenant, frontend]) {
+			for (const env of [config, ...Object.values(config.env ?? {})]) {
+				expect(Object.keys(env.vars ?? {}), config.name as string).not.toContain("TAKEBASE_AUTH_EMULATOR");
+			}
+		}
 	});
 
 	it("the frontend is static assets plus SvelteKit only, with no data bindings", () => {

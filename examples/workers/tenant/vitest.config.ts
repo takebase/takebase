@@ -5,6 +5,8 @@ const migrations = await readD1Migrations(new URL("../../../migrations/tenant", 
 
 // Run the same suite once per tenant environment; each has its own D1 database.
 // OTHER_TENANT_DB is a test-only second tenant database used to prove isolation.
+// GLOBAL stands in for an unavailable global Worker: it implements no RPC, so
+// every membership check through the deployed Worker must fail closed.
 const tenantProject = (environment: "tenant-a" | "tenant-b") => ({
 	plugins: [
 		cloudflareTest({
@@ -12,6 +14,7 @@ const tenantProject = (environment: "tenant-a" | "tenant-b") => ({
 			miniflare: {
 				bindings: { TEST_MIGRATIONS: migrations },
 				d1Databases: { OTHER_TENANT_DB: `${environment}-other-tenant` },
+				serviceBindings: { GLOBAL: () => new Response("global Worker unavailable", { status: 503 }) },
 			},
 		}),
 	],

@@ -1,13 +1,14 @@
-import type { AuthIdentity } from "@takebase/core";
+import type { MembershipVerifier } from "@takebase/core";
 
 // Composition root: settings, service clients and per-request values.
 // Each tenant runs as its own Worker deployment bound to its own D1 database.
+// The verified caller is a request local (`auth`), set by the membership guard.
 export type AppContext = {
 	service: "tenant";
 	tenantId: string;
 	db: D1Database;
-	// No identity is resolved until Firebase verification lands (Wave 3).
-	auth: AuthIdentity | null;
+	// The global Worker's MembershipEntrypoint, reached over the GLOBAL service binding.
+	membership: MembershipVerifier;
 	clientIp: string | null;
 	now: Date;
 };
@@ -16,7 +17,7 @@ export const createContext = (env: CloudflareBindings, request?: Request): AppCo
 	service: "tenant",
 	tenantId: env.TENANT_ID,
 	db: env.DB,
-	auth: null,
+	membership: env.GLOBAL as unknown as MembershipVerifier,
 	clientIp: request?.headers.get("cf-connecting-ip") ?? null,
 	now: new Date(),
 });

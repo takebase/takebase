@@ -1,8 +1,8 @@
-import { createCollectionRoutes } from "@takebase/core";
+import { AuthError, authenticateTenantMember, createCollectionRoutes } from "@takebase/core";
 import { Hono } from "hono";
 import { collections } from "./collections/index.ts";
 import { createContext } from "./context.ts";
-import { runInRequest, useContext } from "./request-store.ts";
+import { requestLocals, runInRequest, useContext } from "./request-store.ts";
 
 const checkDatabase = async () => {
 	const row = await useContext().db.prepare("select 1 as ok").first<{ ok: number }>();
@@ -11,7 +11,21 @@ const checkDatabase = async () => {
 
 export const app = new Hono<{ Bindings: CloudflareBindings }>();
 
-app.use("*", (c, next) => runInRequest(createContext(c.env, c.req.raw), next));
+// The tenant's membership guard (Laravel's `auth` middleware): the caller's
+// identity comes only from the global Worker's answer for this tenant's own
+// TENANT_ID. Headers naming a user, role or tenant are never read.
+app.use("*", (c, next) =>
+	runInRequest(createContext(c.env, c.req.raw), async () => {
+		const { membership, tenantId } = useContext();
+		try {
+			requestLocals.set("auth", await authenticateTenantMember(membership, tenantId, c.req.header("authorization")));
+		} catch (error) {
+			if (!(error instanceof AuthError)) throw error;
+			return c.json({ error: { code: error.code, message: error.message } }, error.status);
+		}
+		await next();
+	}),
+);
 
 app.get("/health", async (c) => {
 	const { service, tenantId } = useContext();
@@ -23,8 +37,8 @@ app.route(
 	createCollectionRoutes({
 		registry: collections,
 		resolve: () => {
-			const { db, auth, now } = useContext();
-			return { db, auth, now };
+			const { db, now } = useContext();
+			return { db, auth: requestLocals.get("auth") ?? null, now };
 		},
 	}),
 );

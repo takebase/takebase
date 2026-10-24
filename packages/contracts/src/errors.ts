@@ -10,6 +10,7 @@ export const errorCodes = [
 	"conflict",
 	"rate_limited",
 	"internal",
+	"unavailable",
 ] as const;
 
 export type ErrorCode = (typeof errorCodes)[number];
@@ -23,6 +24,8 @@ export const errorStatus: Record<ErrorCode, number> = {
 	conflict: 409,
 	rate_limited: 429,
 	internal: 500,
+	// A dependency the server needs (such as the global Worker) could not answer.
+	unavailable: 503,
 };
 
 // Field-level messages for `validation_failed`, keyed by field name.

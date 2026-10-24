@@ -1,3 +1,9 @@
+export type { FirebaseProviderOptions, FirebaseSettings, FirebaseVars, SigningKeys } from "./auth/firebase.ts";
+export { firebaseProvider, firebaseSettings, googleSigningKeys, importSigningKeys } from "./auth/firebase.ts";
+export type { IdentityProvider, VerifiedIdentity } from "./auth/identity-provider.ts";
+export { authenticate, InvalidTokenError, readBearerToken } from "./auth/identity-provider.ts";
+export type { MembershipCheck, MembershipCheckContext, MembershipVerifier } from "./auth/membership.ts";
+export { AuthError, authenticateTenantMember, checkMembership } from "./auth/membership.ts";
 export { id, timestamps } from "./collections/columns.ts";
 export type { ResolvedLookup } from "./collections/database-rules.ts";
 export type { CollectionDefinition, CollectionOptions } from "./collections/define-collection.ts";
@@ -41,4 +47,7 @@ export { evaluateRule } from "./rules/evaluate.ts";
 export type { AuthIdentity, CollectionRules, Rule, RuleContext } from "./rules/types.ts";
 export type { CollectionsService } from "./services/collections-d1-service.ts";
 export { createCollectionsService, recordExists } from "./services/collections-d1-service.ts";
+export type { MembershipsService } from "./services/memberships-d1-service.ts";
+export { createMembershipsService } from "./services/memberships-d1-service.ts";
 export type { AnyD1Database } from "./storage/d1.ts";
+export { memberships, tenantStatuses, tenants } from "./tenancy/schema.ts";
