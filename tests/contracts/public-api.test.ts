@@ -25,6 +25,7 @@ describe("@takebase/contracts public API", () => {
 			"isErrorCode",
 			"isErrorEnvelope",
 			"isListEnvelope",
+			"isTenantListResponse",
 			"maxPerPage",
 			"toListSearchParams",
 		]);

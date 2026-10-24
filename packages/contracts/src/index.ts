@@ -22,3 +22,4 @@ export {
 export type { ErrorBody, ErrorCode, ErrorEnvelope, FieldErrors } from "./errors.ts";
 export { errorCodes, errorStatus, isErrorCode, isErrorEnvelope } from "./errors.ts";
 export type { TenantListResponse, TenantMembership, TenantRole, TenantSummary } from "./tenants.ts";
+export { isTenantListResponse } from "./tenants.ts";

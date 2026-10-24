@@ -1,16 +1,37 @@
 import { env } from "cloudflare:workers";
-import { type AuthIdentity, createCollectionRegistry, createCollectionRoutes, defineCollection } from "@takebase/core";
-import { collections } from "../src/collections/index.ts";
+import {
+	type AuthIdentity,
+	type CollectionRules,
+	createCollectionRegistry,
+	createCollectionRoutes,
+	defineCollection,
+} from "@takebase/core";
+import type { FirebaseAuthLike } from "@takebase/sdk";
+import { policiesCollection } from "../src/collections/policies.ts";
+import { agents } from "../src/schema/agents.ts";
 import { policies } from "../src/schema/policies.ts";
 
-// Test-only routes over the real tenant registry and D1 binding with an explicit
-// internal identity. Production Workers resolve identity only through the
-// global Worker's membership check (see membership-guard.test.ts).
+// An explicit internal identity for test-only routes. Production Workers resolve
+// identity only through the global Worker's membership check.
 export const internalIdentity: AuthIdentity = { id: "test-internal", provider: "internal", roles: [] };
+
+// The real policies collection (validation, filters, sorts, hooks) with every
+// operation open, so CRUD, query and SDK mechanics can be tested on their own.
+// Its real rules are tested through the deployed Worker (policies-access.test.ts).
+const open: CollectionRules = {
+	list: () => true,
+	view: () => true,
+	create: () => true,
+	update: () => true,
+	delete: () => true,
+};
+const crudCollections = createCollectionRegistry([Object.freeze({ ...policiesCollection, rules: open })], {
+	tables: [agents],
+});
 
 export const authorizedRoutes = (now = () => new Date()) =>
 	createCollectionRoutes({
-		registry: collections,
+		registry: crudCollections,
 		resolve: () => ({ db: env.DB, auth: internalIdentity, now: now() }),
 	});
 
@@ -58,4 +79,16 @@ export const newPolicy = (overrides: Record<string, unknown> = {}) => ({
 	holder: "Ada Lovelace",
 	status: "pending",
 	...overrides,
+});
+
+// A Firebase Auth stand-in whose ID token is the user id itself; null is signed out.
+export const testAuth = (uid: string | null): FirebaseAuthLike => ({
+	currentUser: uid === null ? null : { uid, getIdToken: async () => uid },
+	onIdTokenChanged: () => () => {},
+	signOut: async () => {},
+});
+
+export const tenantMembership = (url: string) => ({
+	tenant: { id: env.TENANT_ID, name: env.TENANT_ID, url },
+	roles: ["member"],
 });

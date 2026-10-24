@@ -41,7 +41,8 @@ export type {
 export { compileRules, defaultMessages, formatMessage, validate } from "./collections/validation.ts";
 export type { RequestLocalsAccess, RequestStore } from "./request-store.ts";
 export { createRequestStore } from "./request-store.ts";
-export { authenticated, deny } from "./rules/deny.ts";
+export { authorize } from "./rules/authorize.ts";
+export { authenticated, deny, hasRole, tenantMember } from "./rules/builtins.ts";
 export type { Decision } from "./rules/evaluate.ts";
 export { evaluateRule } from "./rules/evaluate.ts";
 export type { AuthIdentity, CollectionRules, Rule, RuleContext } from "./rules/types.ts";

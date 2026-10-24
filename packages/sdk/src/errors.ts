@@ -1,8 +1,9 @@
 import { type ErrorCode, type FieldErrors, isErrorEnvelope } from "@takebase/contracts";
 
 // Failures that happen in the client, without an error envelope from a Worker:
-// the request never got a response, was aborted, or the response was unusable.
-export type ClientErrorCode = "network" | "aborted" | "invalid_response";
+// the request never got a response, was aborted, the response was unusable, or
+// the handle's tenant or user changed before the request was sent.
+export type ClientErrorCode = "network" | "aborted" | "invalid_response" | "tenant_changed";
 
 export type TakebaseErrorCode = ErrorCode | ClientErrorCode;
 

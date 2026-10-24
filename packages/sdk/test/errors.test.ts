@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createClient, type Fetch, TakebaseError } from "../src/index.ts";
+import { type Fetch, TakebaseError } from "../src/index.ts";
+import { tenantCollection } from "./helpers.ts";
 
-const policies = (fetch: Fetch) => createClient({ url: "https://tenant.example", fetch }).collection("policies");
+const policies = (fetch: Fetch) => tenantCollection(fetch);
 const answer =
 	(response: Response): Fetch =>
 	async () =>
