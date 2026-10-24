@@ -29,11 +29,11 @@ describe("collection rules", () => {
 			throw new Error("boom");
 		};
 		const truthy = (() => "yes") as unknown as () => boolean;
-		expect((await evaluateRule({ view: deny }, "notes", "view", auth)).allowed).toBe(false);
+		expect((await evaluateRule({ view: deny() }, "notes", "view", auth)).allowed).toBe(false);
 		expect((await evaluateRule({ view: throwing }, "notes", "view", auth)).allowed).toBe(false);
 		expect((await evaluateRule({ view: truthy }, "notes", "view", auth)).allowed).toBe(false);
-		expect((await evaluateRule({ view: authenticated }, "notes", "view", null)).allowed).toBe(false);
-		expect((await evaluateRule({ view: authenticated }, "notes", "view", auth)).allowed).toBe(true);
+		expect((await evaluateRule({ view: authenticated() }, "notes", "view", null)).allowed).toBe(false);
+		expect((await evaluateRule({ view: authenticated() }, "notes", "view", auth)).allowed).toBe(true);
 	});
 
 	it("ignores inherited rule names", async () => {

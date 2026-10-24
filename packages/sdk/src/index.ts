@@ -17,6 +17,7 @@ export type {
 	TenantSummary,
 	UpdateInput,
 } from "@takebase/contracts";
+export type { AuthUser, FirebaseAuthLike } from "./auth.ts";
 export type { ClientOptions, TakebaseClient } from "./client.ts";
 export { createClient } from "./client.ts";
 export type { CollectionClient } from "./collection.ts";

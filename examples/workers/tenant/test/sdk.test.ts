@@ -1,7 +1,7 @@
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { createClient, type Fetch, type ListQuery, TakebaseError } from "@takebase/sdk";
 import { describe, expect, it } from "vitest";
-import { addAgent, authorizedRoutes, countPolicies } from "./fixtures.ts";
+import { addAgent, authorizedRoutes, countPolicies, tenantMembership, testAuth } from "./fixtures.ts";
 
 type PolicyFields = {
 	number: string;
@@ -16,8 +16,20 @@ type PolicyFields = {
 // fixture (explicit internal identity), or through the deployed Worker.
 const fixtureFetch: Fetch = async (url, init) => authorizedRoutes().request(url, init);
 const workerFetch: Fetch = (url, init) => exports.default.fetch(url, init);
-const policiesVia = (fetch: Fetch) =>
-	createClient({ url: "https://tenant.local", fetch }).collection<PolicyFields>("policies");
+// The SDK selects the tenant through discovery, answered here by a test-only
+// global URL; signed in as the internal identity, or signed out for the Worker.
+const policiesVia = async (fetch: Fetch, uid: string | null = "test-internal") => {
+	const client = createClient({
+		globalUrl: "https://global.local",
+		auth: testAuth(uid),
+		fetch: async (url, init) =>
+			url === "https://global.local/api/tenants"
+				? Response.json({ tenants: [tenantMembership("https://tenant.local")] })
+				: fetch(url, init),
+	});
+	await client.useTenant(env.TENANT_ID);
+	return client.collection<PolicyFields>("policies");
+};
 
 const failure = async (promise: Promise<unknown>) => {
 	const error = await promise.catch((caught: unknown) => caught);
@@ -27,7 +39,7 @@ const failure = async (promise: Promise<unknown>) => {
 
 describe("SDK → tenant Worker routes → D1 (S-2-2-01)", () => {
 	it("creates ABC123/pending, updates it to active and reads a deterministic page 1 of 20", async () => {
-		const policies = policiesVia(fixtureFetch);
+		const policies = await policiesVia(fixtureFetch);
 		const agentId = await addAgent(`sdk-${crypto.randomUUID()}`);
 
 		const created = await policies.create({
@@ -72,7 +84,7 @@ describe("SDK → tenant Worker routes → D1 (S-2-2-01)", () => {
 	});
 
 	it("surfaces validation, query and missing-record errors from the Worker", async () => {
-		const policies = policiesVia(fixtureFetch);
+		const policies = await policiesVia(fixtureFetch);
 		const before = await countPolicies();
 
 		const invalid = await failure(policies.create({ number: "", holder: "A", status: "deleted" as "pending" }));
@@ -98,8 +110,8 @@ describe("SDK → tenant Worker routes → D1 (S-2-2-01)", () => {
 		expect(await countPolicies()).toBe(before);
 	});
 
-	it("is denied by the deployed Worker, which resolves no identity until Wave 3", async () => {
-		const policies = policiesVia(workerFetch);
+	it("is denied by the deployed Worker for a signed-out user", async () => {
+		const policies = await policiesVia(workerFetch, null);
 		const before = await countPolicies();
 		for (const attempt of [
 			() => policies.getList(),

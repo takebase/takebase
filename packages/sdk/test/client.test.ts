@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { type CollectionRecord, createClient, type Fetch, type ListEnvelope } from "../src/index.ts";
+import type { CollectionRecord, Fetch, ListEnvelope } from "../src/index.ts";
+import { tenantClient, tenantCollection } from "./helpers.ts";
 
 type PolicyFields = { number: string; status: "pending" | "active"; premium: number | null };
 type Policy = CollectionRecord<PolicyFields>;
@@ -32,8 +33,7 @@ const recordingFetch = (...responses: Response[]) => {
 	return { calls, fetch };
 };
 
-const policies = (fetch: Fetch, url = "https://tenant.example/") =>
-	createClient({ url, fetch }).collection<PolicyFields>("policies");
+const policies = (fetch: Fetch) => tenantCollection<PolicyFields>(fetch);
 
 describe("collection CRUD", () => {
 	it("creates, views, updates and deletes records over the REST routes", async () => {
@@ -59,8 +59,12 @@ describe("collection CRUD", () => {
 			["DELETE", `${base}/${policy.id}`],
 		]);
 		expect(calls[0]?.body).toEqual({ number: "ABC123", status: "pending", premium: null });
-		expect(calls[0]?.headers).toEqual({ accept: "application/json", "content-type": "application/json" });
-		expect(calls[1]?.headers).toEqual({ accept: "application/json" });
+		expect(calls[0]?.headers).toEqual({
+			accept: "application/json",
+			"content-type": "application/json",
+			authorization: "Bearer user-1-token-0",
+		});
+		expect(calls[1]?.headers).toEqual({ accept: "application/json", authorization: "Bearer user-1-token-0" });
 		expect(calls[2]?.body).toEqual({ status: "active" });
 	});
 
@@ -97,7 +101,7 @@ describe("collection CRUD", () => {
 		const { calls, fetch } = recordingFetch(Response.json(policy));
 		await policies(fetch).view("a/../../b?c");
 		expect(calls[0]?.url).toBe("https://tenant.example/api/collections/policies/records/a%2F..%2F..%2Fb%3Fc");
-		const client = createClient({ url: "https://tenant.example", fetch });
+		const client = await tenantClient(fetch);
 		for (const name of ["", "Policies", "policies/../x", "sqlite master"])
 			expect(() => client.collection(name), name).toThrow(TypeError);
 	});

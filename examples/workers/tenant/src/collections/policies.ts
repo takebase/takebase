@@ -1,15 +1,15 @@
-import { authenticated, defineCollection } from "@takebase/core";
+import { defineCollection, deny, hasRole, tenantMember } from "@takebase/core";
 import { policies } from "../schema/policies.ts";
 
-// Requires a verified member of this tenant for every operation.
+// Tenant members read and update policies, agents create them, nobody deletes.
 export const policiesCollection = defineCollection({
 	table: policies,
 	rules: {
-		list: authenticated,
-		view: authenticated,
-		create: authenticated,
-		update: authenticated,
-		delete: authenticated,
+		list: tenantMember(),
+		view: tenantMember(),
+		create: hasRole("agent"),
+		update: tenantMember(),
+		delete: deny(),
 	},
 	validate: {
 		// Laravel's unique/exists; the unique index and foreign key still guard races (409).
