@@ -18,7 +18,7 @@ const operations = (collection: string) => {
 const errorCode = async (response: Response) => ((await response.json()) as ErrorEnvelope).error.code;
 
 describe("default deny", () => {
-	it("the deployed tenant Worker resolves no identity and denies every operation", async () => {
+	it("the deployed tenant Worker denies every operation to an anonymous caller", async () => {
 		const before = await countPolicies();
 		for (const [operation, url, init] of operations("policies")) {
 			const response = await exports.default.fetch(url, init);

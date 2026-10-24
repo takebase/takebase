@@ -4,8 +4,9 @@ import { collections } from "../src/collections/index.ts";
 import { policies } from "../src/schema/policies.ts";
 
 // Test-only routes over the real tenant registry and D1 binding with an explicit
-// internal identity. Production Workers resolve no identity until Wave 3.
-export const internalIdentity: AuthIdentity = { id: "test-internal" };
+// internal identity. Production Workers resolve identity only through the
+// global Worker's membership check (see membership-guard.test.ts).
+export const internalIdentity: AuthIdentity = { id: "test-internal", provider: "internal", roles: [] };
 
 export const authorizedRoutes = (now = () => new Date()) =>
 	createCollectionRoutes({

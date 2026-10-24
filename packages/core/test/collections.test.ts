@@ -16,7 +16,7 @@ describe("collection rules", () => {
 	it("denies every operation without a rule", async () => {
 		for (const operation of ["list", "view", "create", "update", "delete"] as const) {
 			expect(await evaluateRule({}, "notes", operation, null)).toEqual({ allowed: false, code: "unauthenticated" });
-			expect(await evaluateRule({}, "notes", operation, { id: "internal" })).toEqual({
+			expect(await evaluateRule({}, "notes", operation, { id: "internal", provider: "internal", roles: [] })).toEqual({
 				allowed: false,
 				code: "forbidden",
 			});
@@ -24,7 +24,7 @@ describe("collection rules", () => {
 	});
 
 	it("denies on false, throwing and non-boolean rules", async () => {
-		const auth = { id: "internal" };
+		const auth = { id: "internal", provider: "internal", roles: [] };
 		const throwing = () => {
 			throw new Error("boom");
 		};
@@ -38,7 +38,9 @@ describe("collection rules", () => {
 
 	it("ignores inherited rule names", async () => {
 		const rules = Object.create({ view: () => true });
-		expect((await evaluateRule(rules, "notes", "view", { id: "internal" })).allowed).toBe(false);
+		expect(
+			(await evaluateRule(rules, "notes", "view", { id: "internal", provider: "internal", roles: [] })).allowed,
+		).toBe(false);
 	});
 });
 

@@ -226,9 +226,15 @@ importers:
 
   examples/workers/global:
     dependencies:
+      '@takebase/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
       '@takebase/core':
         specifier: workspace:*
         version: link:../../../packages/core
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@cloudflare/workers-types@5.20261021.1)
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -239,6 +245,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      drizzle-kit:
+        specifier: 0.31.11
+        version: 0.31.11
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(tsx@4.23.15))

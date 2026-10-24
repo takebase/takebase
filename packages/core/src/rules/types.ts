@@ -1,8 +1,9 @@
 import type { CollectionOperation } from "@takebase/contracts";
 
-// The caller a rule judges. Until Firebase identity arrives (Wave 3), Workers
-// resolve `null`; only tests construct an identity, explicitly and internally.
-export type AuthIdentity = { id: string };
+// The caller a rule judges: a verified member of this tenant, or `null` when
+// anonymous. `id` is the identity provider's subject (a Firebase uid) and
+// `roles` its roles in the tenant, read from global D1 on every request.
+export type AuthIdentity = { id: string; provider: string; roles: readonly string[] };
 
 export type RuleContext = {
 	auth: AuthIdentity | null;

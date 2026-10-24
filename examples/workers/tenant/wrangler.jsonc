@@ -11,6 +11,9 @@
 	// One tenant Worker deployment per tenant, each with its own D1 database.
 	// Local-only identifiers: no remote D1 database is required for development or tests.
 	"vars": { "TENANT_ID": "local" },
+	// Membership checks go to the global Worker's RPC entrypoint over a service
+	// binding, never a configurable URL. Bindings are not inherited by environments.
+	"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -22,6 +25,7 @@
 	"env": {
 		"tenant-a": {
 			"vars": { "TENANT_ID": "tenant-a" },
+			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
 				{
 					"binding": "DB",
@@ -33,6 +37,7 @@
 		},
 		"tenant-b": {
 			"vars": { "TENANT_ID": "tenant-b" },
+			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
 				{
 					"binding": "DB",
