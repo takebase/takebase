@@ -73,6 +73,8 @@ describe("takebase help", () => {
 		expect(commandGroups.filter((group) => group.status === "implemented").map((group) => group.name)).toEqual([
 			"init",
 			"create",
+			"collection",
+			"migrate",
 		]);
 	});
 

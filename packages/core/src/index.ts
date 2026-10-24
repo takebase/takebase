@@ -3,6 +3,14 @@ export type { ResolvedLookup } from "./collections/database-rules.ts";
 export type { CollectionDefinition, CollectionOptions } from "./collections/define-collection.ts";
 export { defineCollection } from "./collections/define-collection.ts";
 export type {
+	CollectionHooks,
+	HookContext,
+	HookData,
+	HookErrorCode,
+	RecordHookContext,
+} from "./collections/hooks.ts";
+export { HookError } from "./collections/hooks.ts";
+export type {
 	FilterCondition,
 	FilterRules,
 	ListSpec,

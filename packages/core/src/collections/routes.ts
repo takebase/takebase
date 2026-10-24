@@ -6,6 +6,7 @@ import type { AuthIdentity } from "../rules/types.ts";
 import { createCollectionsService, recordExists } from "../services/collections-d1-service.ts";
 import { type AnyD1Database, isConstraintError } from "../storage/d1.ts";
 import type { CollectionDefinition } from "./define-collection.ts";
+import { type HookContext, type HookData, HookError, hookOutput, runAfterHook } from "./hooks.ts";
 import { ListQueryError, parseListQuery } from "./query.ts";
 import type { CollectionRegistry } from "./registry.ts";
 import { type DatabaseLookup, type ValidationMode, validate } from "./validation.ts";
@@ -25,9 +26,11 @@ const fail = (c: Context, code: ErrorCode, message: string, fields?: FieldErrors
 
 class RequestError extends Error {
 	readonly code: ErrorCode;
-	constructor(code: ErrorCode, message: string) {
+	readonly fields: FieldErrors | undefined;
+	constructor(code: ErrorCode, message: string, fields?: FieldErrors) {
 		super(message);
 		this.code = code;
+		this.fields = fields;
 	}
 }
 
@@ -50,7 +53,8 @@ const readBody = async (c: Context) => {
 //   POST   /api/collections/:collection/records
 //   PATCH  /api/collections/:collection/records/:id
 //   DELETE /api/collections/:collection/records/:id
-// Order per request: known collection → rule → input (format, then unique/exists) → storage.
+// Order per request: known collection → rule → input (format, then unique/exists)
+// → before-hook → its output validated again → storage → after-hook.
 export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOptions) => {
 	const routes = new Hono();
 
@@ -65,7 +69,9 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 				decision.code === "unauthenticated" ? "Authentication required" : "Not allowed",
 			);
 		}
-		return { definition, db: request.db, service: createCollectionsService(request.db, definition.table, request.now) };
+		const context: HookContext = Object.freeze({ auth: request.auth, collection: definition.name });
+		const service = createCollectionsService(request.db, definition.table, request.now);
+		return { definition, db: request.db, service, context };
 	};
 
 	const recordId = (c: Context) => {
@@ -86,19 +92,33 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 		};
 
 	const validated = async (
-		c: Context,
+		input: unknown,
 		definition: CollectionDefinition,
 		mode: ValidationMode,
 		lookup: DatabaseLookup,
 	) => {
-		const result = await validate(await readBody(c), definition.validation, {
+		const result = await validate(input, definition.validation, {
 			mode,
 			messages: definition.messages,
 			attributes: definition.attributes,
 			lookup,
 		});
-		if (!result.ok) return { error: fail(c, "validation_failed", "The given data was invalid.", result.fields) };
-		return { data: result.data };
+		if (!result.ok) throw new RequestError("validation_failed", "The given data was invalid.", result.fields);
+		return result.data;
+	};
+
+	// A before-hook's output is validated again with the same rules, so a hook
+	// can never store what a client could not.
+	const beforeWrite = async (
+		definition: CollectionDefinition,
+		hook: "creating" | "updating",
+		data: HookData,
+		lookup: DatabaseLookup,
+		run: (input: HookData) => Promise<HookData | undefined> | HookData | undefined,
+	) => {
+		const input = { ...data };
+		const output = hookOutput(definition.name, hook, await run(input), input, Object.keys(definition.validation));
+		return validated(output, definition, hook === "creating" ? "create" : "update", lookup);
 	};
 
 	routes.get("/api/collections/:collection/records", async (c) => {
@@ -113,29 +133,55 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 	});
 
 	routes.post("/api/collections/:collection/records", async (c) => {
-		const { definition, db, service } = await authorize(c, "create");
-		const input = await validated(c, definition, "create", lookupFor(db));
-		if (input.error) return input.error;
-		return c.json(await service.create(input.data), 201);
+		const { definition, db, service, context } = await authorize(c, "create");
+		const { hooks } = definition;
+		const lookup = lookupFor(db);
+		let data = await validated(await readBody(c), definition, "create", lookup);
+		if (hooks.creating)
+			data = await beforeWrite(definition, "creating", data, lookup, (input) => hooks.creating?.(input, context));
+		const record = await service.create(data);
+		if (hooks.created) await runAfterHook(definition.name, "created", () => hooks.created?.(record, context));
+		return c.json(record, 201);
 	});
 
 	routes.patch("/api/collections/:collection/records/:id", async (c) => {
-		const { definition, db, service } = await authorize(c, "update");
+		const { definition, db, service, context } = await authorize(c, "update");
+		const { hooks } = definition;
 		const id = recordId(c);
-		const input = await validated(c, definition, "update", lookupFor(db, id));
-		if (input.error) return input.error;
-		const record = await service.update(id, input.data);
-		return record ? c.json(record) : fail(c, "not_found", "Record not found");
+		const lookup = lookupFor(db, id);
+		let data = await validated(await readBody(c), definition, "update", lookup);
+		if (hooks.updating) {
+			const current = await service.view(id);
+			if (!current) return fail(c, "not_found", "Record not found");
+			const recordContext = { ...context, id, record: current };
+			data = await beforeWrite(definition, "updating", data, lookup, (input) => hooks.updating?.(input, recordContext));
+		}
+		const record = await service.update(id, data);
+		if (!record) return fail(c, "not_found", "Record not found");
+		if (hooks.updated) await runAfterHook(definition.name, "updated", () => hooks.updated?.(record, context));
+		return c.json(record);
 	});
 
 	routes.delete("/api/collections/:collection/records/:id", async (c) => {
-		const { service } = await authorize(c, "delete");
-		return (await service.remove(recordId(c))) ? c.body(null, 204) : fail(c, "not_found", "Record not found");
+		const { definition, service, context } = await authorize(c, "delete");
+		const { hooks } = definition;
+		const id = recordId(c);
+		if (!hooks.deleting && !hooks.deleted) {
+			return (await service.remove(id)) ? c.body(null, 204) : fail(c, "not_found", "Record not found");
+		}
+		const current = await service.view(id);
+		if (!current) return fail(c, "not_found", "Record not found");
+		const recordContext = { ...context, id, record: current };
+		await hooks.deleting?.(recordContext);
+		if (!(await service.remove(id))) return fail(c, "not_found", "Record not found");
+		if (hooks.deleted) await runAfterHook(definition.name, "deleted", () => hooks.deleted?.(recordContext));
+		return c.body(null, 204);
 	});
 
 	// Stable envelopes for every failure; storage details never reach the client.
 	routes.onError((error, c) => {
-		if (error instanceof RequestError) return fail(c, error.code, error.message);
+		if (error instanceof RequestError || error instanceof HookError)
+			return fail(c, error.code, error.message, error.fields);
 		if (error instanceof ListQueryError) return fail(c, "bad_request", error.message);
 		if (isConstraintError(error)) return fail(c, "conflict", "The record conflicts with an existing record");
 		return fail(c, "internal", "Internal error");
