@@ -2,6 +2,7 @@ import { getTableColumns, getTableName } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import type { CollectionRules } from "../rules/types.ts";
 import { serverOwnedFields } from "./columns.ts";
+import { type CollectionHooks, checkHooks } from "./hooks.ts";
 import { compileListSpec, type FilterRules, type ListSpec } from "./query.ts";
 import { type CompiledRules, compileRules, type Messages, type ValidationRules } from "./validation.ts";
 
@@ -20,6 +21,8 @@ export type CollectionOptions<Table extends SQLiteTable> = {
 	// may sort by (spatie's allowedFilters/allowedSorts). Others return 400.
 	filters?: FilterRules;
 	sorts?: readonly string[];
+	// Laravel-style model events; see hooks.ts for what each may do.
+	hooks?: CollectionHooks;
 };
 
 export type CollectionDefinition<Table extends SQLiteTable = SQLiteTable> = {
@@ -30,6 +33,7 @@ export type CollectionDefinition<Table extends SQLiteTable = SQLiteTable> = {
 	readonly messages: Messages | undefined;
 	readonly attributes: Record<string, string> | undefined;
 	readonly list: ListSpec;
+	readonly hooks: Readonly<CollectionHooks>;
 };
 
 const namePattern = /^[a-z][a-z0-9_]{0,62}$/;
@@ -61,5 +65,6 @@ export const defineCollection = <Table extends SQLiteTable>(
 		messages: options.messages,
 		attributes: options.attributes,
 		list: compileListSpec(name, options.table, options.filters, options.sorts),
+		hooks: checkHooks(name, options.hooks),
 	});
 };

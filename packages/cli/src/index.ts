@@ -1,5 +1,7 @@
+import { collectionCommand } from "./commands/collection.ts";
 import { createCommand } from "./commands/create.ts";
 import { initCommand } from "./commands/init.ts";
+import { migrateCommand } from "./commands/migrate.ts";
 import { findCommandGroup } from "./config.ts";
 import { CliError, type CliIo } from "./errors.ts";
 import { mainHelp, version } from "./help.ts";
@@ -12,6 +14,8 @@ export { CliError } from "./errors.ts";
 const commands: Record<string, (args: string[], io: CliIo) => number> = {
 	init: initCommand,
 	create: createCommand,
+	collection: collectionCommand,
+	migrate: migrateCommand,
 };
 
 const dispatch = (argv: string[], io: CliIo) => {
