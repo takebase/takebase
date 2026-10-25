@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev`. Local emulator only: create this user in
+# the Auth emulator and render the database rules with its uid (see README.md).
+FIREBASE_DISPATCHER_EMAIL=dispatcher-local@example.test
+FIREBASE_DISPATCHER_PASSWORD=local-only-password

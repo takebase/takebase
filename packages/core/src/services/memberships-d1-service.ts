@@ -37,13 +37,31 @@ export const createMembershipsService = (d1: AnyD1Database) => {
 		return [...byTenant.values()];
 	};
 
-	// The identity's roles in one active tenant, or null when it is not a member.
-	const roles = async (identity: VerifiedIdentity, tenantId: string) => {
-		const found = await rows(identity, tenantId);
-		return found.length > 0 ? found.map(({ role }) => role) : null;
+	// The identity's roles in one tenant together with that tenant's access
+	// revision, read in one statement so both come from the same snapshot.
+	// Roles are null unless the identity is a member of an active tenant; the
+	// revision is null only when the tenant does not exist.
+	const access = async (identity: VerifiedIdentity, tenantId: string) => {
+		const found = await db
+			.select({ revision: tenants.access_revision, status: tenants.status, role: memberships.role })
+			.from(tenants)
+			.leftJoin(
+				memberships,
+				and(
+					eq(memberships.tenant_id, tenants.id),
+					eq(memberships.provider, identity.provider),
+					eq(memberships.subject, identity.subject),
+				),
+			)
+			.where(eq(tenants.id, tenantId))
+			.orderBy(asc(memberships.role));
+		const [first] = found;
+		if (!first) return { revision: null, roles: null };
+		const roles = first.status === "active" ? found.flatMap(({ role }) => (role === null ? [] : [role])) : [];
+		return { revision: first.revision, roles: roles.length > 0 ? roles : null };
 	};
 
-	return { list, roles };
+	return { list, access };
 };
 
 export type MembershipsService = ReturnType<typeof createMembershipsService>;

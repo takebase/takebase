@@ -16,3 +16,12 @@ export type RecordChangeEvent = {
 	// When the change committed, as an ISO 8601 string.
 	created: string;
 };
+
+// POST /api/realtime/session: the caller, as a verified tenant member, may now
+// receive this tenant's realtime signals. `connection` is what the SDK's
+// realtime adapter needs to connect (e.g. a database URL); never secret.
+export type RealtimeSession = {
+	uid: string;
+	revision: number;
+	connection: Record<string, string>;
+};

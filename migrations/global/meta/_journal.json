@@ -8,6 +8,20 @@
 			"when": 1792818099307,
 			"tag": "0000_tenants_memberships",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1792897297002,
+			"tag": "0001_access_revision",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1792897297789,
+			"tag": "0002_access_revision_triggers",
+			"breakpoints": true
 		}
 	]
 }

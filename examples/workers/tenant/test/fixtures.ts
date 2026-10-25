@@ -29,10 +29,11 @@ const crudCollections = createCollectionRegistry([Object.freeze({ ...policiesCol
 	tables: [agents],
 });
 
-export const authorizedRoutes = (now = () => new Date()) =>
+export const authorizedRoutes = (now = () => new Date(), committed?: () => void) =>
 	createCollectionRoutes({
 		registry: crudCollections,
 		resolve: () => ({ db: env.DB, auth: internalIdentity, now: now() }),
+		committed,
 	});
 
 // The same table with no rules at all: every operation must be denied.

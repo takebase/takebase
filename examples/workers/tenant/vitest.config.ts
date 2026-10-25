@@ -7,12 +7,15 @@ const migrations = await readD1Migrations(new URL("../../../migrations/tenant", 
 // OTHER_TENANT_DB is a test-only second tenant database used to prove isolation.
 // GLOBAL stands in for an unavailable global Worker: it implements no RPC, so
 // every membership check through the deployed Worker must fail closed.
+// TEST_FIREBASE_EMULATORS turns on the realtime end-to-end tests inside
+// `firebase emulators:exec`, which sets the emulator hosts.
+const emulators = process.env.FIREBASE_DATABASE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST ? "1" : "";
 const tenantProject = (environment: "tenant-a" | "tenant-b") => ({
 	plugins: [
 		cloudflareTest({
 			wrangler: { configPath: "./wrangler.jsonc", environment },
 			miniflare: {
-				bindings: { TEST_MIGRATIONS: migrations },
+				bindings: { TEST_MIGRATIONS: migrations, TEST_FIREBASE_EMULATORS: emulators },
 				d1Databases: { OTHER_TENANT_DB: `${environment}-other-tenant` },
 				serviceBindings: { GLOBAL: () => new Response("global Worker unavailable", { status: 503 }) },
 			},

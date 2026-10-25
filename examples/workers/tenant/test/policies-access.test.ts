@@ -20,9 +20,9 @@ const identities: Record<string, AuthIdentity> = {
 const global: MembershipVerifier = {
 	verifyMembership: async (token, tenantId): Promise<MembershipCheck> => {
 		const identity = identities[token];
-		if (tenantId !== env.TENANT_ID || !identity)
-			return { status: token === "outsider" ? "not_member" : "invalid_token" };
-		return { status: "member", identity };
+		if (token === "outsider") return { status: "not_member", subject: "outsider", revision: 1 };
+		if (tenantId !== env.TENANT_ID || !identity) return { status: "invalid_token" };
+		return { status: "member", identity, revision: 1 };
 	},
 };
 

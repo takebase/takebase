@@ -10,7 +10,16 @@
 	"compatibility_flags": ["nodejs_als"],
 	// One tenant Worker deployment per tenant, each with its own D1 database.
 	// Local-only identifiers: no remote D1 database is required for development or tests.
-	"vars": { "TENANT_ID": "local" },
+	// Realtime goes to this tenant's own Realtime Database (here the local emulator,
+	// one namespace per tenant). The dispatcher user's FIREBASE_DISPATCHER_EMAIL and
+	// FIREBASE_DISPATCHER_PASSWORD are secrets only (.dev.vars locally); without them
+	// realtime is off and the Worker still serves its API.
+	"vars": {
+		"TENANT_ID": "local",
+		"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
+		"FIREBASE_API_KEY": "demo-api-key",
+		"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-local"
+	},
 	// Membership checks go to the global Worker's RPC entrypoint over a service
 	// binding, never a configurable URL. Bindings are not inherited by environments.
 	"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
@@ -24,7 +33,12 @@
 	],
 	"env": {
 		"tenant-a": {
-			"vars": { "TENANT_ID": "tenant-a" },
+			"vars": {
+				"TENANT_ID": "tenant-a",
+				"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
+				"FIREBASE_API_KEY": "demo-api-key",
+				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-a"
+			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
 				{
@@ -36,7 +50,12 @@
 			]
 		},
 		"tenant-b": {
-			"vars": { "TENANT_ID": "tenant-b" },
+			"vars": {
+				"TENANT_ID": "tenant-b",
+				"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
+				"FIREBASE_API_KEY": "demo-api-key",
+				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-b"
+			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
 				{

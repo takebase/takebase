@@ -16,16 +16,17 @@ describe("membership boundary (S-3-1-01)", () => {
 		expect(await verifyMembership(token, "acme")).toEqual({
 			status: "member",
 			identity: { id: "user-acme", provider: "firebase", roles: ["admin", "editor"] },
+			revision: 2,
 		});
 		expect(await verifyMembership("not-a-token", "acme")).toEqual({ status: "invalid_token" });
 
 		await env.DB.prepare("update tenants set status = 'disabled' where id = 'acme'").run();
-		expect(await verifyMembership(token, "acme")).toEqual({ status: "not_member" });
+		expect(await verifyMembership(token, "acme")).toEqual({ status: "not_member", subject: "user-acme", revision: 3 });
 		expect(await (await listTenants(token)).json()).toEqual({ tenants: [] });
 
 		await env.DB.prepare("update tenants set status = 'active' where id = 'acme'").run();
 		await env.DB.prepare("delete from memberships where subject = 'user-acme'").run();
-		expect(await verifyMembership(token, "acme")).toEqual({ status: "not_member" });
+		expect(await verifyMembership(token, "acme")).toEqual({ status: "not_member", subject: "user-acme", revision: 6 });
 	});
 
 	it("global D1 rejects duplicate memberships, unknown tenants and unknown statuses", async () => {
