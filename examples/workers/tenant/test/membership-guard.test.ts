@@ -27,8 +27,8 @@ const errorCode = async (response: Response) => ((await response.json()) as Erro
 describe("tenant membership guard (S-3-1-01)", () => {
 	it("authenticates members only through the global Worker for its own tenant", async () => {
 		const global = globalWorker({
-			member: { status: "member", identity: { id: "user-1", provider: "firebase", roles: ["editor"] } },
-			outsider: { status: "not_member" },
+			member: { status: "member", identity: { id: "user-1", provider: "firebase", roles: ["editor"] }, revision: 1 },
+			outsider: { status: "not_member", subject: "user-2", revision: 1 },
 		});
 		const request = (token?: string) =>
 			app.fetch(

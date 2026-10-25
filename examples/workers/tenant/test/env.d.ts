@@ -6,6 +6,8 @@ declare global {
 		interface Env {
 			TEST_MIGRATIONS: D1Migration[];
 			OTHER_TENANT_DB: D1Database;
+			// "1" inside `pnpm test:realtime`, when the Auth and Database emulators run.
+			TEST_FIREBASE_EMULATORS: string;
 		}
 	}
 }

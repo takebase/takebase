@@ -41,3 +41,34 @@ const policies = client.collection("policies");
 ```
 
 The tenant URL always comes from discovery. Tokens go only to the global URL and that URL over HTTPS, and a 401 triggers one forced token refresh. Switching tenant, a different user or `client.auth.signOut()` makes earlier collection handles reject with `tenant_changed`.
+
+## Realtime (Firebase Realtime Database)
+
+Each tenant has its own Realtime Database. RTDB only says "this collection changed": `/collections/{name} = { revision }`. Clients then refetch through this API, where the collection rules decide what they may see. Signals never carry record ids or data.
+
+- **Dispatch:** every committed create, update or delete writes an outbox event in the same D1 batch. After the response (`waitUntil`) and whenever a member opens a session, the Worker publishes the highest revision per collection. A failure leaves the event pending with a backoff; D1 data is never touched. There is no cron.
+- **Sessions:** `POST /api/realtime/session` grants a verified member read access at the tenant's access revision from global D1, and returns the non-secret connection settings.
+- **Revocation:** any "not a member" answer from the global Worker removes that user's grant at once. The rules reject a grant older than the latest revocation, so a membership check that raced a removal cannot restore access.
+- **Rules:** `databaseRules(dispatcherUid)` from `@takebase/adapter-firebase` renders the rules for one tenant. Only that tenant's dispatcher user writes signals and grants. Members may only delete their own grant and write their own server-timestamped presence; everything else is denied.
+
+Realtime is on when the Worker has `FIREBASE_DATABASE_URL`, `FIREBASE_API_KEY` (vars) and the dispatcher's `FIREBASE_DISPATCHER_EMAIL` and `FIREBASE_DISPATCHER_PASSWORD` (secrets only). Without the secrets, sessions answer 503 and the API works as before.
+
+### Local development
+
+The emulators run only `demo-*` projects; nothing here reaches Firebase.
+
+1. From the repository root: `firebase emulators:start --only auth,database --project demo-takebase`.
+2. Create the dispatcher user in the Auth emulator and note its `localId`:
+   ```sh
+   curl -s -X POST 'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-api-key' \
+     -H 'content-type: application/json' \
+     -d '{"email":"dispatcher-local@example.test","password":"local-only-password","returnSecureToken":true}'
+   ```
+3. Load the rules into this tenant's namespace (`FIREBASE_DATABASE_NAMESPACE` in `wrangler.jsonc`), replacing `<uid>`:
+   ```sh
+   node --input-type=module -e "import { databaseRules } from '@takebase/adapter-firebase/rules'; console.log(JSON.stringify(databaseRules('<uid>')))" > /tmp/rules.json
+   curl -s -X PUT 'http://127.0.0.1:9000/.settings/rules.json?ns=demo-takebase-local' -H 'authorization: Bearer owner' -d @/tmp/rules.json
+   ```
+4. Copy `.dev.vars.example` to `.dev.vars` and run `pnpm dev`.
+
+`pnpm test:realtime` (repository root) runs the rules and the end-to-end Worker tests against the emulators. It needs Java and runs locally only.

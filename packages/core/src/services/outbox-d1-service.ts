@@ -1,3 +1,4 @@
+import type { RecordChangeEvent } from "@takebase/contracts";
 import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { toRecordChangeEvent } from "../realtime/events.ts";
 import { outbox } from "../realtime/outbox.ts";
@@ -8,6 +9,8 @@ import { type AnyD1Database, createDatabase } from "../storage/d1.ts";
 // until the lease expires; then another dispatcher claims them again.
 
 export type ClaimOptions = { limit: number; leaseMs: number; now: Date };
+// `attempts` counts claims so far, including this one; retry backoff grows with it.
+export type ClaimedEvent = RecordChangeEvent & { attempts: number };
 export type RetryOptions = { retryAt: Date; maxAttempts: number };
 
 export const createOutboxService = (d1: AnyD1Database) => {
@@ -41,7 +44,8 @@ export const createOutboxService = (d1: AnyD1Database) => {
 			.where(inArray(outbox.seq, claimable))
 			.returning();
 		rows.sort((a, b) => a.seq - b.seq);
-		return { token, events: rows.map(toRecordChangeEvent) };
+		const events: ClaimedEvent[] = rows.map((row) => ({ ...toRecordChangeEvent(row), attempts: row.attempts }));
+		return { token, events };
 	};
 
 	// Only the current lease holder can acknowledge; returns the ids it marked delivered.

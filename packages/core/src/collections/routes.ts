@@ -17,6 +17,9 @@ export type CollectionRequest = { db: AnyD1Database; auth: AuthIdentity | null; 
 export type CollectionRoutesOptions = {
 	registry: CollectionRegistry;
 	resolve: () => CollectionRequest;
+	// Runs after a create/update/delete committed (with its outbox event); the
+	// Worker uses it to dispatch realtime signals without waiting for them.
+	committed?: () => void;
 };
 
 const recordIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,7 +58,7 @@ const readBody = async (c: Context) => {
 //   DELETE /api/collections/:collection/records/:id
 // Order per request: known collection → rule → input (format, then unique/exists)
 // → before-hook → its output validated again → storage → after-hook.
-export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOptions) => {
+export const createCollectionRoutes = ({ registry, resolve, committed }: CollectionRoutesOptions) => {
 	const routes = new Hono();
 
 	const authorize = async (c: Context, operation: CollectionOperation) => {
@@ -140,6 +143,7 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 		if (hooks.creating)
 			data = await beforeWrite(definition, "creating", data, lookup, (input) => hooks.creating?.(input, context));
 		const record = await service.create(data);
+		committed?.();
 		if (hooks.created) await runAfterHook(definition.name, "created", () => hooks.created?.(record, context));
 		return c.json(record, 201);
 	});
@@ -158,6 +162,7 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 		}
 		const record = await service.update(id, data);
 		if (!record) return fail(c, "not_found", "Record not found");
+		committed?.();
 		if (hooks.updated) await runAfterHook(definition.name, "updated", () => hooks.updated?.(record, context));
 		return c.json(record);
 	});
@@ -167,13 +172,16 @@ export const createCollectionRoutes = ({ registry, resolve }: CollectionRoutesOp
 		const { hooks } = definition;
 		const id = recordId(c);
 		if (!hooks.deleting && !hooks.deleted) {
-			return (await service.remove(id)) ? c.body(null, 204) : fail(c, "not_found", "Record not found");
+			if (!(await service.remove(id))) return fail(c, "not_found", "Record not found");
+			committed?.();
+			return c.body(null, 204);
 		}
 		const current = await service.view(id);
 		if (!current) return fail(c, "not_found", "Record not found");
 		const recordContext = { ...context, id, record: current };
 		await hooks.deleting?.(recordContext);
 		if (!(await service.remove(id))) return fail(c, "not_found", "Record not found");
+		committed?.();
 		if (hooks.deleted) await runAfterHook(definition.name, "deleted", () => hooks.deleted?.(recordContext));
 		return c.body(null, 204);
 	});

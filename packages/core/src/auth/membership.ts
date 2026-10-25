@@ -9,10 +9,13 @@ import { type IdentityProvider, InvalidTokenError, readBearerToken } from "./ide
 // global Worker verifies it and reads the membership from global D1. The tenant
 // never trusts a client-supplied uid, role, tenant or URL.
 
+// `revision` is the tenant's access revision read with the answer (see
+// tenants.access_revision): realtime grants and revocations are versioned with
+// it. `subject` on not_member names the verified user whose access to revoke.
 export type MembershipCheck =
-	| { status: "member"; identity: AuthIdentity }
+	| { status: "member"; identity: AuthIdentity; revision: number }
 	| { status: "invalid_token" }
-	| { status: "not_member" };
+	| { status: "not_member"; subject: string; revision: number | null };
 
 // The global Worker's RPC surface, as tenant Workers call it.
 export type MembershipVerifier = {
@@ -35,9 +38,9 @@ export const checkMembership = async (
 		if (error instanceof InvalidTokenError) return { status: "invalid_token" };
 		throw error;
 	}
-	const roles = await createMembershipsService(db).roles(verified, tenantId);
-	if (roles === null) return { status: "not_member" };
-	return { status: "member", identity: { id: verified.subject, provider: verified.provider, roles } };
+	const { roles, revision } = await createMembershipsService(db).access(verified, tenantId);
+	if (roles === null || revision === null) return { status: "not_member", subject: verified.subject, revision };
+	return { status: "member", identity: { id: verified.subject, provider: verified.provider, roles }, revision };
 };
 
 export class AuthError extends Error {
@@ -53,6 +56,15 @@ export class AuthError extends Error {
 	}
 }
 
+// What the tenant guard learns from one membership check.
+export type TenantMember = { identity: AuthIdentity; revision: number };
+
+export type AuthenticateOptions = {
+	// Called when the global Worker says the verified caller is not a member, so
+	// the tenant can revoke any realtime access they still hold.
+	notMember?: (subject: string, revision: number) => void;
+};
+
 // Tenant side: Laravel's `auth` middleware plus an EnsureTenantMember check.
 // No Authorization header → anonymous (rules decide). Otherwise the caller is
 // a verified member of this tenant or the request stops here. If the global
@@ -61,7 +73,8 @@ export const authenticateTenantMember = async (
 	verifier: MembershipVerifier,
 	tenantId: string,
 	authorization: string | null | undefined,
-): Promise<AuthIdentity | null> => {
+	{ notMember }: AuthenticateOptions = {},
+): Promise<TenantMember | null> => {
 	let token: string | null;
 	try {
 		token = readBearerToken(authorization);
@@ -78,10 +91,13 @@ export const authenticateTenantMember = async (
 	}
 	switch (check?.status) {
 		case "member":
-			return check.identity;
+			return { identity: check.identity, revision: check.revision };
 		case "invalid_token":
 			throw new AuthError("unauthenticated", "Invalid or expired token");
 		case "not_member":
+			if (typeof check.subject === "string" && typeof check.revision === "number") {
+				notMember?.(check.subject, check.revision);
+			}
 			throw new AuthError("forbidden", "Not a member of this tenant");
 		default:
 			throw new AuthError("unavailable", "Membership could not be verified");

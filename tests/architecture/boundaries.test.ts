@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { parse } from "jsonc-parser";
 import { describe, expect, it } from "vitest";
 
@@ -61,7 +61,13 @@ describe("runtime boundaries", () => {
 	it("tenants reach the global Worker only over a service binding, and no config trusts the Auth emulator", () => {
 		for (const env of [tenant, ...Object.values(tenant.env ?? {})]) {
 			expect(env.services).toEqual([{ binding: "GLOBAL", service: global.name, entrypoint: "MembershipEntrypoint" }]);
-			expect(Object.keys(env.vars ?? {})).toEqual(["TENANT_ID"]);
+			// Realtime settings are public; the dispatcher's email and password are secrets only.
+			expect(Object.keys(env.vars ?? {})).toEqual([
+				"TENANT_ID",
+				"FIREBASE_DATABASE_URL",
+				"FIREBASE_API_KEY",
+				"FIREBASE_DATABASE_NAMESPACE",
+			]);
 		}
 		for (const config of [global, tenant, frontend]) {
 			for (const env of [config, ...Object.values(config.env ?? {})]) {
@@ -92,6 +98,16 @@ describe("package boundaries", () => {
 	it("the CLI has no runtime dependencies and does not bundle the framework", () => {
 		expect(runtimeDependencyNames("packages/cli")).toEqual([]);
 		expect(dependencyNames("packages/cli")).not.toContain("@takebase/core");
+	});
+
+	it("core speaks only the realtime contract: no Firebase package or code", () => {
+		expect(dependencyNames("packages/core").filter((name) => name.includes("firebase"))).toEqual([]);
+		const realtime = readdirSync(new URL("../../packages/core/src/realtime", import.meta.url));
+		for (const file of realtime) {
+			expect(read(`packages/core/src/realtime/${file}`), file).not.toMatch(
+				/firebase-rtdb|adapter-firebase|\.settings|onDisconnect/,
+			);
+		}
 	});
 
 	it("only server packages may depend on Drizzle", () => {

@@ -12,6 +12,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@takebase/adapter-firebase": "workspace:*",
 		"@takebase/core": "workspace:*",
 		"drizzle-orm": "0.45.4",
 		"hono": "^4.13.13"
@@ -19,7 +20,7 @@
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "^1.4.6",
 		"@takebase/contracts": "workspace:*",
-		"@takebase/firebase-rtdb": "workspace:*",
+		"@takebase/firebase-rtdb": "github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44",
 		"@takebase/sdk": "workspace:*",
 		"@types/node": "^26.6.5",
 		"drizzle-kit": "0.31.11",

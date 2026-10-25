@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { id, timestamps } from "../collections/columns.ts";
 
 // Global D1 tables owned by the framework. The global Worker's schema directory
@@ -17,6 +17,10 @@ export const tenants = sqliteTable(
 		// no Worker ever fetches it.
 		url: text("url").notNull(),
 		status: text("status", { enum: tenantStatuses }).notNull(),
+		// Bumped by D1 triggers (migrations/global) whenever this tenant's status or
+		// any of its memberships changes; never decreases. Realtime grants carry it,
+		// so a grant read before a revocation can never outrank that revocation.
+		access_revision: integer("access_revision").notNull().default(0),
 		...timestamps(),
 	},
 	(table) => [check("tenants_status", sql`${table.status} in ('active', 'disabled')`)],

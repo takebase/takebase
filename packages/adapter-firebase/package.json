@@ -1,0 +1,23 @@
+{
+	"name": "@takebase/adapter-firebase",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Takebase realtime adapter for Firebase Realtime Database",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./rules": "./src/rules.ts"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@takebase/firebase-rtdb": "github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44"
+	},
+	"devDependencies": {
+		"@takebase/core": "workspace:*",
+		"@types/node": "^26.6.5"
+	}
+}
