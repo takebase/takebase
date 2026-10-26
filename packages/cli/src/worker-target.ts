@@ -127,24 +127,47 @@ export const localDatabaseArgs = (target: WorkerTarget) => [
 
 export type ToolResult = { status: number; stdout: string; output: string };
 
-// Runs the Worker's own pinned tool from its node_modules, never a downloaded copy.
-export const runTool = (dir: string, tool: "wrangler" | "drizzle-kit", args: string[]): ToolResult => {
-	const bin = join(dir, "node_modules", ".bin", tool);
-	if (!existsSync(bin)) {
-		throw new CliError(`${tool} is not installed in ${dir}`, { hint: "Run `pnpm install` first." });
-	}
+const spawnTool = (bin: string, tool: string, dir: string, args: string[], env: Record<string, string>) => {
 	const result = spawnSync(bin, args, {
 		cwd: dir,
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
 		maxBuffer: 64 * 1024 * 1024,
 		timeout: 300_000,
-		env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0", WRANGLER_SEND_METRICS: "false" },
+		env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0", WRANGLER_SEND_METRICS: "false", ...env },
 	});
 	if (result.error) throw new CliError(`Could not run ${tool}: ${result.error.message}`);
 	const stdout = result.stdout ?? "";
 	return { status: result.status ?? 1, stdout, output: `${stdout}${result.stderr ?? ""}` };
 };
+
+export type Tool = "wrangler" | "drizzle-kit" | "vite" | "firebase";
+
+// Runs the Worker's own pinned tool from its node_modules, never a downloaded copy.
+// `env` adds variables such as CLOUDFLARE_ACCOUNT_ID, which pins Wrangler to one account.
+export const runTool = (
+	dir: string,
+	tool: Exclude<Tool, "firebase">,
+	args: string[],
+	env: Record<string, string> = {},
+): ToolResult => {
+	const bin = join(dir, "node_modules", ".bin", tool);
+	if (!existsSync(bin)) {
+		throw new CliError(`${tool} is not installed in ${dir}`, { hint: "Run `pnpm install` first." });
+	}
+	return spawnTool(bin, tool, dir, args, env);
+};
+
+// The Firebase CLI is the operator's own installation (it also runs the emulators).
+export const runFirebase = (dir: string, args: string[]): ToolResult =>
+	spawnTool("firebase", "firebase", dir, args, {});
+
+// Every external tool call of the provisioning and deploy commands goes through
+// one runner, so a test can record the calls and prove a plan changes nothing.
+export type ToolRunner = (dir: string, tool: Tool, args: string[], env?: Record<string, string>) => ToolResult;
+
+export const runAnyTool: ToolRunner = (dir, tool, args, env = {}) =>
+	tool === "firebase" ? spawnTool("firebase", "firebase", dir, args, env) : runTool(dir, tool, args, env);
 
 // The last lines of a tool's output, for error messages.
 export const outputTail = (output: string, lines = 15) =>

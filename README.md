@@ -39,7 +39,7 @@ Run a Worker locally from its directory with `pnpm dev`, for example `pnpm --fil
 
 ## Local milestone
 
-`pnpm dev:stack` runs the whole product locally: the Firebase Auth and RTDB emulators, the global Worker, two tenant Workers (`tenant-a`, `tenant-b`) and the SvelteKit app at `http://localhost:5173`, with seeded users and fresh tenant databases on every start. Emulators and local D1 only; no Firebase or Cloudflare account is used. The [SvelteKit example README](examples/sveltekit/README.md) lists the users and what to try.
+`pnpm dev:stack` runs the whole product locally: the Firebase Auth and RTDB emulators, the global Worker, two tenant Workers (`tenant-a`, `tenant-b`) and the SvelteKit app at `http://localhost:5173`, with seeded users and fresh tenant databases on every start. It is `takebase dev --fresh --seed 'node tests/fixtures/seed.ts'`: `takebase dev` provisions every tenant declared in `takebase.jsonc` (see [Tenants](#tenants)) and the fixture seed adds the users and their memberships. Emulators and local D1 only; no Firebase or Cloudflare account is used. The [SvelteKit example README](examples/sveltekit/README.md) lists the users and what to try.
 
 `pnpm test:e2e` starts a fresh stack and runs the browser tests in Chromium (install it once with `pnpm exec playwright install chromium`). They cover creating a policy and seeing it arrive by realtime, switching tenants, reconnecting, signing out and a removed member being signed out.
 
@@ -73,10 +73,10 @@ pnpm staging:firebase:check   # rules, dispatchers, grants, revocation, tenant i
 
 pnpm staging:local:check      # the real Workers via wrangler dev, against real Firebase
 
-# Cloudflare
-pnpm staging:migrate          # remote D1 migrations
-pnpm staging:deploy global    # then tenant-a, tenant-b, app: one at a time
-pnpm staging:check            # schema, health, membership RPC, app page
+# Cloudflare (the CLI, see "Dev, build and deploy")
+pnpm staging:deploy:plan      # takebase deploy --env staging --plan: read-only
+pnpm staging:deploy           # takebase deploy --env staging --confirm staging: migrations, Workers, app
+pnpm staging:check            # takebase doctor --env staging, then health, membership RPC, app page
 pnpm staging:seed             # tenants and memberships; clears the tenants' RTDB signals
 pnpm staging:journey          # identity → tenant → create → signal → refetch, negative auth, isolation
 pnpm staging:e2e              # the browser journey against the deployed app
@@ -84,9 +84,11 @@ pnpm staging:e2e              # the browser journey against the deployed app
 
 `staging:local:check` and deployed staging share the tenants' Realtime Databases, and the local check restarts its revision counters on every run. Run `pnpm staging:seed` after a local check, before the deployed journey. Otherwise stale signals hide new changes, because the adapter ignores any revision that is not newer than the stored one.
 
-Teardown is manual and is never run by these scripts.
-- Cloudflare: `wrangler delete --env staging` in the global and SvelteKit directories, and `wrangler delete --env staging-tenant-a` / `--env staging-tenant-b` in the tenant directory. Then `wrangler d1 delete takebase-staging-global` (and `-tenant-a`, `-tenant-b`).
-- Firebase: delete the two `takebase-staging-tenant-*` databases and the staging users in the Firebase console.
+New staging tenants are provisioned with `takebase tenant create <id> --name <name> --env staging`. SEGU-219 proved this with `tenant-c`: it was provisioned, disabled (revocation confirmed) and its registration deleted. Its resources (`takebase-staging-tenant-c` Worker, D1, Realtime Database and dispatcher user) were left up on purpose and are no longer declared in `takebase.jsonc` or `wrangler.jsonc`.
+
+Teardown is manual and is never run by these scripts. Pin every Wrangler call to the account, because the account is shared: prefix it with `CLOUDFLARE_ACCOUNT_ID=<value from ops/.staging.env>`.
+- Cloudflare: `wrangler delete <name>` for `takebase-staging-global`, `-app`, `-tenant-a`, `-tenant-b` and `-tenant-c`, then `wrangler d1 delete <name>` for `takebase-staging-global`, `-tenant-a`, `-tenant-b` and `-tenant-c`.
+- Firebase: `firebase database:instances:delete <name> --project takebase-eb6e3` for the three `takebase-staging-tenant-*` databases, then delete the staging users (including the dispatchers) in the Firebase console.
 
 ## CLI
 
@@ -102,10 +104,10 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | Command group | Capabilities | Status |
 | --- | --- | --- |
 | `init` / `create` | Generate a project starter | Implemented |
-| `dev` / `build` / `deploy` | Development and deployment | Planned |
-| `doctor` | Validate environment and configuration | Planned |
+| `dev` / `build` / `deploy` | Run locally, bundle, deploy a remote environment | Implemented |
+| `doctor` | Validate environment and configuration | Implemented (read-only) |
 | `user` | Create, list, disable, enable, delete users; revoke sessions | Planned |
-| `tenant` | Create, list, provision, disable, delete tenants | Planned |
+| `tenant` | Create, list, provision, disable, delete tenants | Implemented |
 | `tenant user` | Add/remove members and assign roles | Planned |
 | `role` / `invite` | Manage roles and invitations | Planned |
 | `collection` | Generate and inspect collections | Implemented |
@@ -116,6 +118,62 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `logs` / `health` | Diagnostics and monitoring | Planned |
 
 Planned commands exit with an error saying they are not implemented yet.
+
+### Environments and doctor
+
+`takebase.jsonc` at the repository root names the deployment environments (`local` and the approved `staging`), the Worker directories, and for each tenant the Wrangler environment holding its bindings. It holds nothing secret. A remote environment also names the prefix every resource name must start with (`takebase-staging-`) and its untracked secrets file (`ops/.staging.env`, mode 600). That file also holds `CLOUDFLARE_ACCOUNT_ID`, which pins every remote Wrangler call to one account.
+
+```sh
+node packages/cli/src/bin.ts doctor               # local: tools, configuration, local D1
+node packages/cli/src/bin.ts doctor --env staging # adds secrets (presence only), identity, resources, remote D1
+```
+
+`doctor` only reads. It prints `ok`, `warn` or `FAIL` per check and exits 1 when any check fails. Secret values are never printed.
+
+### Tenants
+
+```sh
+# locally: inside the emulators, e.g. firebase emulators:exec --only auth,database --project demo-takebase '<command>'
+# remotely: add --env staging
+node packages/cli/src/bin.ts tenant create tenant-c --name "Tenant C" --port 8790   # declare, then provision
+node packages/cli/src/bin.ts tenant provision tenant-c --plan                       # detect only; changes nothing
+node packages/cli/src/bin.ts tenant provision tenant-c                              # resume or check
+node packages/cli/src/bin.ts tenant list                                            # registration and pending revocations
+```
+
+`tenant create` adds the tenant to `takebase.jsonc` and then provisions it. Provisioning detects each resource before it creates it, in this order:
+
+1. Realtime Database
+2. dispatcher user
+3. rules
+4. D1 database
+5. the tenant's Wrangler environment in the tenant `wrangler.jsonc`
+6. tenant migrations
+7. stale realtime signals: a revision above the tenant D1's newest outbox revision is cleared
+8. deploy (remote only)
+9. registration in global D1
+
+A rerun after any failure resumes where it stopped and never creates anything twice. An existing Wrangler environment or registration that differs from what provisioning expects stops it instead of being overwritten. The tenant is registered last, so a half-provisioned tenant is never discovered. Provision never enables a disabled tenant.
+
+Remotely, provisioning creates a `<namePrefix><tenant>` Realtime Database instance, signs the dispatcher up through Identity Toolkit (generating its password into the secrets file when there is none yet), deploys the rules to that one instance with your Firebase CLI login, creates the D1 database, deploys the Worker with its secrets from a temporary mode-600 file and waits for its `/health`. Any name outside the prefix stops it before a call is made.
+
+```sh
+node packages/cli/src/bin.ts tenant disable tenant-c                     # deny now, then revoke realtime
+node packages/cli/src/bin.ts tenant delete tenant-c --confirm tenant-c   # registration only
+```
+
+`tenant disable` changes the status in one statement. Membership is read on every request, so the API refuses the tenant's members at once, and the same statement records a tenant-wide realtime revocation. The command then calls the tenant Worker's `/api/realtime/reconcile` (with backoff) until global D1 shows the revocation confirmed. If the Worker cannot be reached it exits 1 with the revocation still pending; run it again. `tenant delete` refuses unless the tenant is disabled, its revocation is confirmed and `--confirm <id>` repeats the id. It removes only the registration (memberships go with it) and prints the commands that would remove the tenant's resources, which it never runs itself.
+
+### Dev, build and deploy
+
+```sh
+node packages/cli/src/bin.ts dev [--fresh] [--seed '<command>']          # local stack; starts the emulators itself
+node packages/cli/src/bin.ts build --env staging                       # bundle every Worker (--dry-run), build the app
+node packages/cli/src/bin.ts deploy --env staging --plan               # read-only: what deploy would run
+node packages/cli/src/bin.ts deploy --env staging --confirm staging    # deploy
+```
+
+`deploy` runs in a fixed order and stops at the first failure: global migrations, the global Worker and its `/health`, then each registered active tenant (migrations, Worker with its secrets, `/health`), then the app built with the environment's settings and its page. Every step can be run again. Before any change it refuses a Cloudflare login that cannot use `CLOUDFLARE_ACCOUNT_ID`, any Worker, D1 or Realtime Database name outside the prefix, and a tenant bound to another global Worker. `--plan` makes read-only calls only. Unprovisioned or disabled tenants are skipped; deploy never provisions. A local environment is never deployed.
 
 ### Collections and migrations
 

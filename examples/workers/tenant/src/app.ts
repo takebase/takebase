@@ -87,6 +87,8 @@ app.route(
 			accessRevision: requestLocals.get("accessRevision") ?? null,
 			adapter: useContext().realtime,
 			granted: dispatch,
+			tenantId: useContext().tenantId,
+			revocations: useContext().revocations,
 		}),
 	}),
 );

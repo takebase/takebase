@@ -1,5 +1,5 @@
 import { firebaseRealtime } from "@takebase/adapter-firebase";
-import type { MembershipVerifier, RealtimeAdapter } from "@takebase/core";
+import type { MembershipVerifier, RealtimeAdapter, RevocationSource } from "@takebase/core";
 
 // Composition root: settings, service clients and per-request values.
 // Each tenant runs as its own Worker deployment bound to its own D1 database.
@@ -10,6 +10,8 @@ export type AppContext = {
 	db: D1Database;
 	// The global Worker's MembershipEntrypoint, reached over the GLOBAL service binding.
 	membership: MembershipVerifier;
+	// Tenant-wide realtime revocations recorded in global D1, over the same binding.
+	revocations: RevocationSource;
 	// This tenant's realtime service, or null when its dispatcher secrets are not set.
 	realtime: RealtimeAdapter | null;
 	// Keeps background work (dispatch, revocation) alive after the response.
@@ -44,6 +46,7 @@ export const createContext = (
 	tenantId: env.TENANT_ID,
 	db: env.DB,
 	membership: env.GLOBAL as unknown as MembershipVerifier,
+	revocations: env.GLOBAL as unknown as RevocationSource,
 	realtime: createRealtime(env),
 	waitUntil: (work) => (execution ? execution.waitUntil(work) : void work),
 	clientIp: request?.headers.get("cf-connecting-ip") ?? null,

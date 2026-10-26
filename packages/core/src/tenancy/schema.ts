@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { check, index, integer, primaryKey, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 import { id, timestamps } from "../collections/columns.ts";
 
 // Global D1 tables owned by the framework. The global Worker's schema directory
@@ -24,6 +24,23 @@ export const tenants = sqliteTable(
 		...timestamps(),
 	},
 	(table) => [check("tenants_status", sql`${table.status} in ('active', 'disabled')`)],
+);
+
+// Tenant-wide realtime revocations still to deliver: a D1 trigger
+// (migrations/global) inserts one whenever a disabled tenant's access revision
+// moves, so the row commits with the status change. The tenant Worker revokes
+// every realtime grant at `rev`, then sets `confirmed`.
+export const tenantRevocations = sqliteTable(
+	"tenant_revocations",
+	{
+		tenant_id: text("tenant_id")
+			.notNull()
+			.references(() => tenants.id, { onDelete: "cascade" }),
+		rev: integer("rev").notNull(),
+		created: text("created").notNull(),
+		confirmed: text("confirmed"),
+	},
+	(table) => [primaryKey({ columns: [table.tenant_id, table.rev] })],
 );
 
 // One row per role (a Laravel role pivot). Removing a member deletes its rows.

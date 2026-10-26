@@ -22,6 +22,20 @@
 			"when": 1792897297789,
 			"tag": "0002_access_revision_triggers",
 			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1793025894709,
+			"tag": "0003_tenant_revocations",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1793025900402,
+			"tag": "0004_tenant_revocation_trigger",
+			"breakpoints": true
 		}
 	]
 }

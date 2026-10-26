@@ -1,0 +1,46 @@
+// Takebase deployment environments, read by the CLI (`takebase doctor`, and the
+// tenant and deploy commands). Nothing here is secret: passwords, the Firebase
+// web API key and the Cloudflare account ID live only in each environment's
+// untracked secrets file. Each tenant names the Wrangler environment in the
+// tenant Worker's wrangler.jsonc that holds its bindings.
+{
+	"workers": {
+		"global": "examples/workers/global",
+		"tenant": "examples/workers/tenant",
+		"app": "examples/sveltekit"
+	},
+	"environments": {
+		// Emulators and local D1 only (`takebase dev`, which `pnpm dev:stack` runs).
+		"local": {
+			"remote": false,
+			"firebaseProject": "demo-takebase",
+			"dispatcherEmail": "takebase-dispatcher+{tenant}@example.test",
+			// The Auth emulator's fixed password, as in tests/fixtures; never a real one.
+			"dispatcherPassword": "local-only-password",
+			// `takebase dev` serves the global Worker and the app here, each tenant on its own port.
+			"globalPort": 8787,
+			"appPort": 5173,
+			"tenants": {
+				"tenant-a": { "name": "Tenant A", "env": "tenant-a", "port": 8788 },
+				"tenant-b": { "name": "Tenant B", "env": "tenant-b", "port": 8789 }
+			}
+		},
+		// Approved staging (SEGU-218): Firebase project takebase-eb6e3 and the shared
+		// Cloudflare account, where only names starting with namePrefix may be touched.
+		"staging": {
+			"remote": true,
+			"firebaseProject": "takebase-eb6e3",
+			"namePrefix": "takebase-staging-",
+			"workersSubdomain": "info8841",
+			"globalEnv": "staging",
+			"appEnv": "staging",
+			"secretsFile": "ops/.staging.env",
+			"dispatcherPasswordKey": "STAGING_PASSWORD_DISPATCHER_{TENANT}",
+			"dispatcherEmail": "takebase-staging-dispatcher-{tenant}@example.test",
+			"tenants": {
+				"tenant-a": { "name": "Tenant A", "env": "staging-tenant-a" },
+				"tenant-b": { "name": "Tenant B", "env": "staging-tenant-b" }
+			}
+		}
+	}
+}
