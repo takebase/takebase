@@ -12,6 +12,17 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	// Approved staging (SEGU-218). The app's settings are baked in at build time
+	// (VITE_*), so build it with the staging:app:deploy root script.
+	"env": {
+		"staging": {
+			"name": "takebase-staging-app",
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			}
+		}
+	},
 	"observability": {
 		"enabled": true
 	},

@@ -2,6 +2,7 @@ import { AUTH_EMULATOR_URL, createClient, EMULATOR_URL } from "@takebase/firebas
 import { createClient as createTakebase, type Fetch, type RealtimeEvent } from "@takebase/sdk";
 import { deleteApp, type FirebaseApp, initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { getDatabase, goOffline, goOnline } from "firebase/database";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { firebaseConnector } from "../src/client.ts";
 import { databaseRules, firebaseRealtime } from "../src/index.ts";
@@ -132,6 +133,35 @@ describe.skipIf(!running)("Firebase browser connector on the emulator", { timeou
 
 		unsubscribe();
 		await waitFor(async () => expect(await owner.get(`access/members/${user.uid}`)).toBeNull());
+	});
+
+	// Found on staging (SEGU-218): when the connection drops, Firebase applies the
+	// client's own onDisconnect writes to its local view, so the grant looks
+	// removed while offline. That is not lost access; the reconnect handles it.
+	it("a dropped connection is reported as offline, not as lost access", async () => {
+		const member = await signUp("offline");
+		const { app } = await signIn(member.email);
+		await adapter.grant(member.uid, accessRevision);
+		const online: boolean[] = [];
+		let lost = 0;
+		const open = firebaseConnector(app)(
+			{ uid: member.uid, revision: accessRevision, connection },
+			{ connected: (value) => online.push(value), lost: () => lost++ },
+		);
+		const revisions: number[] = [];
+		open.watch("policies", (revision) => revisions.push(revision));
+		await waitFor(() => expect(online.at(-1)).toBe(true));
+		await waitFor(() => expect(revisions.length).toBeGreaterThan(0));
+
+		const db = getDatabase(app, `${EMULATOR_URL}?ns=${encodeURIComponent(namespace)}`);
+		goOffline(db);
+		await waitFor(() => expect(online.at(-1)).toBe(false));
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		expect(lost).toBe(0);
+
+		goOnline(db);
+		await waitFor(() => expect(online.at(-1)).toBe(true));
+		open.close();
 	});
 
 	it("a signed-in user without a grant reads no signals", async () => {

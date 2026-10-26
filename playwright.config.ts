@@ -6,6 +6,8 @@ import { defineConfig, devices } from "@playwright/test";
 // and Vite processes. The tests share that stack, so they run one at a time.
 export default defineConfig({
 	testDir: "tests/e2e",
+	// Staging tests run only through playwright.staging.config.ts (pnpm staging:e2e).
+	testIgnore: "staging-*.spec.ts",
 	fullyParallel: false,
 	workers: 1,
 	retries: 0,

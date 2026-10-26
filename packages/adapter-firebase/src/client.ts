@@ -39,19 +39,25 @@ export const firebaseConnector =
 			};
 		};
 
+		// When the connection drops, Firebase applies this client's onDisconnect
+		// writes to its local view, so the grant looks removed while offline (and
+		// in a cached view before the next connect). Only a removal seen while
+		// connected is lost access; a drop is reported as offline instead.
+		let online = false;
+
 		// A removed grant or a denied read: the SDK asks the API what happened.
 		listen(
 			onValue(
 				grant,
 				(snapshot) => {
-					if (!snapshot.exists()) events.lost();
+					if (online && !snapshot.exists()) events.lost();
 				},
 				() => events.lost(),
 			),
 		);
 		listen(
 			onValue(ref(db, ".info/connected"), (snapshot) => {
-				const online = snapshot.val() === true;
+				online = snapshot.val() === true;
 				// The server forgets onDisconnect once it ran, so arm it on every connect.
 				if (online) onDisconnect(grant).remove().catch(events.lost);
 				events.connected(online);

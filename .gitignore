@@ -25,3 +25,7 @@ node_modules/
 # Playwright results and traces
 /test-results/
 /playwright-report/
+
+# Staging operator values (generated passwords, local copies of staging config)
+/ops/.staging.env
+/ops/.staging/
