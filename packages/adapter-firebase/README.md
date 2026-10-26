@@ -28,7 +28,20 @@ const rules = databaseRules(dispatcherUid);
 
 The dispatcher is an ordinary email/password user, so the rules apply to the Worker too. There is no Admin SDK or service account. With the local emulator it signs in through the Auth emulator; the emulator's admin token is never used. All tenant members can see collection names, revisions and presence. The collection rules in the API decide data access.
 
+## Browser connector
+
+`@takebase/adapter-firebase/client` is the SDK's realtime connector for the same layout. It needs `firebase` (a peer dependency; Workers never load it) and the application's `FirebaseApp`, whose signed-in Auth user is what the rules check:
+
+```ts
+import { createClient } from "@takebase/sdk";
+import { firebaseConnector } from "@takebase/adapter-firebase/client";
+
+const client = createClient({ globalUrl, auth: getAuth(app), realtime: { connector: firebaseConnector(app) } });
+```
+
+It reads only `/collections/{name}` and the user's own grant, and its only write is removing that grant when the connection drops (`onDisconnect`). When the grant disappears or a read is denied, the SDK opens a new session; if the API refuses it (401/403), the SDK signs the user out completely. It never writes presence.
+
 ## Tests
 
 - `pnpm --filter @takebase/adapter-firebase test`: adapter ordering logic with a scripted database.
-- `pnpm test:realtime` (repository root): the rendered rules against the real emulators, plus the tenant Worker end to end.
+- `pnpm test:realtime` (repository root): the rendered rules and the browser connector (with the Takebase SDK) against the real emulators, plus the tenant Worker end to end.

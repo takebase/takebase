@@ -21,3 +21,7 @@ dist/
 node_modules/
 .wrangler/
 .DS_Store
+
+# Playwright results and traces
+/test-results/
+/playwright-report/

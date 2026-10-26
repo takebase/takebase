@@ -9,11 +9,14 @@
 		"test": "pnpm -r --if-present test && vitest run",
 		"build": "pnpm -r --if-present build",
 		"test:firebase": "firebase emulators:exec --only auth,database --project demo-takebase 'node --test tests/firebase/*.test.ts'",
-		"test:realtime": "firebase emulators:exec --only auth,database --project demo-takebase 'pnpm --filter @takebase/adapter-firebase exec vitest run test/emulator.test.ts && pnpm --filter @takebase/example-tenant exec vitest run test/realtime'"
+		"test:realtime": "firebase emulators:exec --only auth,database --project demo-takebase 'pnpm --filter @takebase/adapter-firebase exec vitest run test/emulator.test.ts test/client-emulator.test.ts && pnpm --filter @takebase/example-tenant exec vitest run test/realtime'",
+		"dev:stack": "firebase emulators:exec --only auth,database --project demo-takebase 'node tests/fixtures/local-stack.ts'",
+		"test:e2e": "playwright test"
 	},
 	"packageManager": "pnpm@12.15.0",
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.2",
+		"@playwright/test": "1.64.1",
 		"@takebase/cli": "workspace:*",
 		"@takebase/contracts": "workspace:*",
 		"@takebase/sdk": "workspace:*",

@@ -9,6 +9,7 @@ import {
 } from "@takebase/contracts";
 import { readResponse, TakebaseError } from "./errors.ts";
 import type { Http, RequestOptions } from "./http.ts";
+import type { SubscriptionCallback } from "./subscription.ts";
 
 export type CollectionClient<Fields extends object = Record<string, unknown>> = {
 	getList: (query?: ListQuery<Fields>, options?: RequestOptions) => Promise<ListEnvelope<CollectionRecord<Fields>>>;
@@ -16,7 +17,13 @@ export type CollectionClient<Fields extends object = Record<string, unknown>> = 
 	create: (data: CreateInput<Fields>, options?: RequestOptions) => Promise<CollectionRecord<Fields>>;
 	update: (id: string, data: UpdateInput<Fields>, options?: RequestOptions) => Promise<CollectionRecord<Fields>>;
 	delete: (id: string, options?: RequestOptions) => Promise<void>;
+	// Calls `callback` whenever the collection changes, and once on subscribing
+	// and after every reconnect; refetch from there. Returns the unsubscribe
+	// function. Needs a realtime connector in createClient.
+	subscribe: (topic: "*", callback: SubscriptionCallback) => () => void;
 };
+
+export type Subscribe = (collection: string, callback: SubscriptionCallback) => () => void;
 
 const namePattern = /^[a-z][a-z0-9_]{0,62}$/;
 
@@ -43,7 +50,11 @@ const readList = async <Fields extends object>(response: Response) => {
 
 // CRUD for one collection at `/api/collections/<name>/records`. Access is
 // decided by the Worker's rules; nothing here grants or checks permissions.
-export const createCollectionClient = <Fields extends object>(http: Http, name: string): CollectionClient<Fields> => {
+export const createCollectionClient = <Fields extends object>(
+	http: Http,
+	name: string,
+	subscribe: Subscribe,
+): CollectionClient<Fields> => {
 	if (!namePattern.test(name)) throw new TypeError(`Invalid collection name "${name}"`);
 	const records = `/api/collections/${name}/records`;
 	const record = (id: string) => `${records}/${encodeURIComponent(id)}`;
@@ -59,6 +70,10 @@ export const createCollectionClient = <Fields extends object>(http: Http, name: 
 		delete: async (id, { signal } = {}) => {
 			const response = await http.send(record(id), { method: "DELETE", signal });
 			if (response.status !== 204) await readResponse(response);
+		},
+		subscribe: (topic, callback) => {
+			if (topic !== "*") throw new TypeError('Only the "*" topic is supported');
+			return subscribe(name, callback);
 		},
 	};
 };
