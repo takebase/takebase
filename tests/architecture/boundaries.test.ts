@@ -110,6 +110,14 @@ describe("package boundaries", () => {
 		}
 	});
 
+	it("the Firebase adapter's Worker entry never loads the Firebase JS SDK", () => {
+		const files = readdirSync(new URL("../../packages/adapter-firebase/src", import.meta.url));
+		for (const file of files.filter((name) => name !== "client.ts")) {
+			expect(read(`packages/adapter-firebase/src/${file}`), file).not.toMatch(/from\s+["']firebase\//);
+		}
+		expect(read("packages/adapter-firebase/src/index.ts")).not.toMatch(/client/);
+	});
+
 	it("only server packages may depend on Drizzle", () => {
 		for (const dir of ["packages/contracts", "packages/sdk", "packages/cli", "examples/sveltekit"]) {
 			expect(

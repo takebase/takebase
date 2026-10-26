@@ -6,7 +6,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./rules": "./src/rules.ts"
+		"./rules": "./src/rules.ts",
+		"./client": "./src/client.ts"
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
@@ -16,8 +17,18 @@
 	"dependencies": {
 		"@takebase/firebase-rtdb": "github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44"
 	},
+	"peerDependencies": {
+		"firebase": "^13.0.0"
+	},
+	"peerDependenciesMeta": {
+		"firebase": {
+			"optional": true
+		}
+	},
 	"devDependencies": {
 		"@takebase/core": "workspace:*",
-		"@types/node": "^26.6.5"
+		"@takebase/sdk": "workspace:*",
+		"@types/node": "^26.6.5",
+		"firebase": "13.0.0"
 	}
 }

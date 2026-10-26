@@ -1,56 +1,54 @@
-# sv
+# SvelteKit example
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+The Takebase local milestone app: sign in with Firebase Auth, pick one of your tenants, create policies and watch the list follow realtime signals. It uses `@takebase/sdk` with the browser connector from `@takebase/adapter-firebase/client`, exactly as an application would.
 
-## Creating a project
+## Run it
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+From the repository root (needs the Firebase CLI and Java for the emulators):
 
 ```sh
-# recreate this project
-pnpm dlx sv@1.1.1 create --template minimal --types ts --install pnpm sveltekit
+pnpm install
+pnpm dev:stack
 ```
 
-## Adding features
+This starts, on emulators and local D1 only:
 
-Add features to your project with `sv add`:
+| What | Where |
+| --- | --- |
+| Firebase Auth and RTDB emulators (`demo-takebase`) | `127.0.0.1:9099`, `127.0.0.1:9000` |
+| Global Worker (tenant discovery) | `http://localhost:8787` |
+| Tenant Workers `tenant-a`, `tenant-b` | `http://localhost:8788`, `http://localhost:8789` |
+| This app | `http://localhost:5173` |
 
-```sh
-npx sv add
-```
+Every start seeds fresh emulator users, a dispatcher and database rules per tenant, and empty tenant databases. Ctrl-C stops everything. Nothing reaches Firebase or Cloudflare.
 
-For example, to add Tailwind CSS:
+## Try it
 
-```sh
-npx sv add tailwindcss
-```
+The password for every seeded user is `local-only-password`.
 
-## Developing
+| User | Tenant A | Tenant B |
+| --- | --- | --- |
+| `alice@example.test` | agent | agent |
+| `bob@example.test` | member | — |
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+1. Sign in as alice and select Tenant A.
+2. Create a policy, for example `ABC123` / any holder / `pending`. The list updates from the realtime signal: the app refetches only when a signal arrives, never after its own create.
+3. Open a second window, sign in as alice and create a policy there: the first window updates too.
+4. Select Tenant B. Its list is empty, and changes in Tenant A no longer reach this window.
+5. Sign in as bob: only Tenant A is listed, and creating a policy is refused (members may not create).
+6. Sign out. The app forgets the user, tenant and list.
 
-```sh
-npm run dev
+If a user's membership is removed while they are signed in, their next request is refused, the tenant revokes their realtime access and the app signs them out with a notice. This happens even if they belong to other tenants.
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+## How it is built
 
-## Building
+- `src/lib/edge.ts` creates the one Firebase app and Takebase client. With a `demo-*` project it talks only to the Auth emulator. Set `VITE_TAKEBASE_GLOBAL_URL`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_AUTH_EMULATOR_URL` to point it elsewhere.
+- `src/lib/stores/session.svelte.ts` holds the user, their tenants and the selected tenant. It runs one policies subscription per selected tenant and clears all state on sign-out or revocation.
+- `src/lib/stores/policies/` holds the policies list. Only the latest load may write it, so a slow response from before a tenant switch is dropped.
+- `src/routes/+page.svelte` renders the stores. Components never call Firebase or the client directly.
 
-To create a production version of your app:
+The app runs in the browser only (`ssr = false`); every record comes from the tenant API, whose collection rules decide what the user may see.
 
-```sh
-npm run build
-```
+## Tests
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+`pnpm test:e2e` from the repository root starts a fresh stack and drives this app in Chromium (`tests/e2e/protected-realtime.spec.ts`). Install the browser once with `pnpm exec playwright install chromium`. `pnpm check` runs svelte-check.

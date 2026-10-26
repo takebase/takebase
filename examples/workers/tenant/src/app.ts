@@ -1,6 +1,7 @@
 import {
 	AuthError,
 	authenticateTenantMember,
+	browserCors,
 	createCollectionRoutes,
 	createOutboxService,
 	createRealtimeRoutes,
@@ -10,6 +11,9 @@ import { type Context, Hono } from "hono";
 import { collections } from "./collections/index.ts";
 import { createContext } from "./context.ts";
 import { requestLocals, runInRequest, useContext } from "./request-store.ts";
+
+// Set per deployment (locally with `wrangler dev --var`); not in wrangler.jsonc.
+type BrowserVars = { CORS_ORIGINS?: string };
 
 const checkDatabase = async () => {
 	const row = await useContext().db.prepare("select 1 as ok").first<{ ok: number }>();
@@ -44,7 +48,11 @@ const revoke = (subject: string, revision: number) => {
 	waitUntil(realtime.revoke(subject, revision).catch((error) => console.error("Realtime revocation failed", error)));
 };
 
-export const app = new Hono<{ Bindings: CloudflareBindings }>();
+export const app = new Hono<{ Bindings: CloudflareBindings & BrowserVars }>();
+
+// Browser apps on other origins (CORS_ORIGINS, unset by default). Preflights are
+// answered here, before the membership guard.
+app.use("*", (c, next) => browserCors(c.env.CORS_ORIGINS)(c, next));
 
 // The tenant's membership guard (Laravel's `auth` middleware): the caller's
 // identity comes only from the global Worker's answer for this tenant's own

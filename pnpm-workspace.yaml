@@ -5,3 +5,7 @@ packages:
 allowBuilds:
   esbuild: true
   workerd: true
+  # Not needed: Firebase web-app auto-init from FIREBASE_WEBAPP_CONFIG, and a
+  # protobufjs dependents version check.
+  "@firebase/util": false
+  protobufjs: false
