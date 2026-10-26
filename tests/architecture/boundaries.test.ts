@@ -4,7 +4,12 @@ import { describe, expect, it } from "vitest";
 
 type D1Binding = { binding: string; database_name: string; database_id: string };
 type ServiceBinding = { binding: string; service: string; entrypoint?: string };
-type WranglerEnv = { d1_databases?: D1Binding[]; services?: ServiceBinding[]; vars?: Record<string, string> };
+type WranglerEnv = {
+	name?: string;
+	d1_databases?: D1Binding[];
+	services?: ServiceBinding[];
+	vars?: Record<string, string>;
+};
 type WranglerConfig = WranglerEnv & {
 	main: string;
 	compatibility_flags?: string[];
@@ -47,19 +52,42 @@ describe("runtime boundaries", () => {
 		expect(global.name).not.toBe(tenant.name);
 	});
 
-	it("each tenant environment has its own local-only D1 database", () => {
-		const tenantDatabases = [tenant, ...Object.values(tenant.env ?? {})].map((env) => env.d1_databases ?? []);
-		const ids = tenantDatabases.map((databases) => databases.map((db) => db.database_id));
-		const allIds = [...ids.flat(), ...(global.d1_databases ?? []).map((db) => db.database_id)];
+	// Local environments use local-only D1 ids; the approved staging environments
+	// (SEGU-218) use their own remote databases, named takebase-staging-*.
+	const isStaging = (name: string) => name.startsWith("staging");
+	const tenantEnvs = (staging: boolean) => [
+		...(staging ? [] : [tenant]),
+		...Object.entries(tenant.env ?? {})
+			.filter(([name]) => isStaging(name) === staging)
+			.map(([, env]) => env),
+	];
+	const globalStaging = global.env?.staging;
 
-		expect(Object.keys(tenant.env ?? {}).sort()).toEqual(["tenant-a", "tenant-b"]);
-		for (const databases of tenantDatabases) expect(databases.map((db) => db.binding)).toEqual(["DB"]);
-		expect(new Set(allIds).size).toBe(allIds.length);
-		for (const id of allIds) expect(id).toMatch(/^local-/);
+	it("each tenant environment has its own D1 database: local ids locally, takebase-staging-* in staging", () => {
+		expect(Object.keys(tenant.env ?? {}).sort()).toEqual([
+			"staging-tenant-a",
+			"staging-tenant-b",
+			"tenant-a",
+			"tenant-b",
+		]);
+		expect(Object.keys(global.env ?? {})).toEqual(["staging"]);
+		const local = [...tenantEnvs(false), global].flatMap((env) => env.d1_databases ?? []);
+		const staging = [...tenantEnvs(true), globalStaging ?? {}].flatMap((env) => env.d1_databases ?? []);
+		for (const env of [...tenantEnvs(false), ...tenantEnvs(true)]) {
+			expect((env.d1_databases ?? []).map((db) => db.binding)).toEqual(["DB"]);
+		}
+		for (const db of local) expect(db.database_id).toMatch(/^local-/);
+		for (const db of staging) {
+			expect(db.database_name).toMatch(/^takebase-staging-/);
+			expect(db.database_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+		}
+		const ids = [...local, ...staging].map((db) => db.database_id);
+		expect(new Set(ids).size).toBe(ids.length);
+		expect(staging).toHaveLength(3);
 	});
 
 	it("tenants reach the global Worker only over a service binding, and no config trusts the Auth emulator", () => {
-		for (const env of [tenant, ...Object.values(tenant.env ?? {})]) {
+		for (const env of tenantEnvs(false)) {
 			expect(env.services).toEqual([{ binding: "GLOBAL", service: global.name, entrypoint: "MembershipEntrypoint" }]);
 			// Realtime settings are public; the dispatcher's email and password are secrets only.
 			expect(Object.keys(env.vars ?? {})).toEqual([
@@ -69,6 +97,15 @@ describe("runtime boundaries", () => {
 				"FIREBASE_DATABASE_NAMESPACE",
 			]);
 		}
+		for (const env of tenantEnvs(true)) {
+			expect(env.services).toEqual([
+				{ binding: "GLOBAL", service: globalStaging?.name, entrypoint: "MembershipEntrypoint" },
+			]);
+			// In staging the API key and the dispatcher credentials are uploaded secrets.
+			expect(Object.keys(env.vars ?? {})).toEqual(["TENANT_ID", "FIREBASE_DATABASE_URL", "CORS_ORIGINS"]);
+			expect(env.vars?.FIREBASE_DATABASE_URL).toMatch(/^https:\/\/takebase-staging-[a-z0-9-]+\.firebaseio\.com$/);
+		}
+		expect(globalStaging?.vars?.FIREBASE_PROJECT_ID).not.toMatch(/^demo-/);
 		for (const config of [global, tenant, frontend]) {
 			for (const env of [config, ...Object.values(config.env ?? {})]) {
 				expect(Object.keys(env.vars ?? {}), config.name as string).not.toContain("TAKEBASE_AUTH_EMULATOR");
@@ -78,7 +115,9 @@ describe("runtime boundaries", () => {
 
 	it("the frontend is static assets plus SvelteKit only, with no data bindings", () => {
 		expect(frontend.assets?.directory).toBe(".svelte-kit/cloudflare");
-		for (const key of resourceBindings) expect(frontend[key]).toBeUndefined();
+		for (const env of [frontend, ...Object.values(frontend.env ?? {})] as Record<string, unknown>[]) {
+			for (const key of resourceBindings) expect(env[key]).toBeUndefined();
+		}
 	});
 
 	it("the frontend does not depend on the server framework", () => {

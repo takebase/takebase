@@ -65,6 +65,43 @@
 					"migrations_dir": "../../../migrations/tenant"
 				}
 			]
+		},
+		// Approved staging (SEGU-218): each tenant's real Realtime Database and remote
+		// D1. FIREBASE_API_KEY and the dispatcher credentials are uploaded as secrets
+		// with each deploy (staging:* root scripts), never kept here.
+		"staging-tenant-a": {
+			"name": "takebase-staging-tenant-a",
+			"vars": {
+				"TENANT_ID": "tenant-a",
+				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-a.firebaseio.com",
+				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev"
+			},
+			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "takebase-staging-tenant-a",
+					"database_id": "58e47804-aeac-4a53-8c7c-8f84ae823d21",
+					"migrations_dir": "../../../migrations/tenant"
+				}
+			]
+		},
+		"staging-tenant-b": {
+			"name": "takebase-staging-tenant-b",
+			"vars": {
+				"TENANT_ID": "tenant-b",
+				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-b.firebaseio.com",
+				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev"
+			},
+			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "takebase-staging-tenant-b",
+					"database_id": "8d5a7f27-9ab6-42e2-a77b-592a85d07512",
+					"migrations_dir": "../../../migrations/tenant"
+				}
+			]
 		}
 	},
 	"observability": {

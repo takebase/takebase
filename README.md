@@ -35,7 +35,7 @@ pnpm test:firebase   # Firebase emulator checks; needs the Firebase CLI and Java
 pnpm test:realtime   # realtime adapter and connector against the emulators; same needs
 ```
 
-Run a Worker locally from its directory with `pnpm dev`, for example `pnpm --filter @takebase/example-tenant dev -- --env tenant-a`. All D1 databases are local; no Cloudflare account is needed for development or tests.
+Run a Worker locally from its directory with `pnpm dev`, for example `pnpm --filter @takebase/example-tenant dev --env tenant-a`. Pass Wrangler flags directly, with no `--` in between: pnpm forwards a literal `--` and Wrangler then ignores the flags after it, so the Worker silently starts with the default `local` environment. All D1 databases are local; no Cloudflare account is needed for development or tests.
 
 ## Local milestone
 
@@ -44,6 +44,49 @@ Run a Worker locally from its directory with `pnpm dev`, for example `pnpm --fil
 `pnpm test:e2e` starts a fresh stack and runs the browser tests in Chromium (install it once with `pnpm exec playwright install chromium`). They cover creating a policy and seeing it arrive by realtime, switching tenants, reconnecting, signing out and a removed member being signed out.
 
 Browser origins are allowed per Worker with the `CORS_ORIGINS` variable (comma-separated exact origins; unset means no cross-origin access). The stack sets it for the local app only.
+
+## Staging
+
+An approved staging copy of the milestone runs on real services (SEGU-218):
+
+- **Firebase:** project `takebase-eb6e3`, with one Realtime Database per tenant (`takebase-staging-tenant-a`, `-b`).
+- **Cloudflare:** Workers on workers.dev and one D1 database per Worker, all named `takebase-staging-*` in a shared account. Never create or touch anything outside that prefix.
+
+| What | URL |
+| --- | --- |
+| App | `https://takebase-staging-app.info8841.workers.dev` |
+| Global Worker | `https://takebase-staging-global.info8841.workers.dev` |
+| Tenant Workers | `https://takebase-staging-tenant-a.info8841.workers.dev`, `…-tenant-b…` |
+
+You need:
+- a Firebase CLI login with access to the project;
+- a Wrangler login for the account;
+- the untracked `ops/.staging.env` (mode 600). It holds the web app config and the generated staging passwords; the scripts write it and never print it. Secrets reach the Workers only through `--secrets-file` uploads.
+
+Run each step from the repository root and check it before going on:
+
+```sh
+# Firebase (only after console setup: Email/Password sign-in, default RTDB, Blaze)
+pnpm staging:firebase:setup   # users and rendered tenant rules (safe to rerun)
+pnpm staging:firebase:rules   # deploys those rules
+pnpm staging:firebase:check   # rules, dispatchers, grants, revocation, tenant isolation
+
+pnpm staging:local:check      # the real Workers via wrangler dev, against real Firebase
+
+# Cloudflare
+pnpm staging:migrate          # remote D1 migrations
+pnpm staging:deploy global    # then tenant-a, tenant-b, app: one at a time
+pnpm staging:check            # schema, health, membership RPC, app page
+pnpm staging:seed             # tenants and memberships; clears the tenants' RTDB signals
+pnpm staging:journey          # identity → tenant → create → signal → refetch, negative auth, isolation
+pnpm staging:e2e              # the browser journey against the deployed app
+```
+
+`staging:local:check` and deployed staging share the tenants' Realtime Databases, and the local check restarts its revision counters on every run. Run `pnpm staging:seed` after a local check, before the deployed journey. Otherwise stale signals hide new changes, because the adapter ignores any revision that is not newer than the stored one.
+
+Teardown is manual and is never run by these scripts.
+- Cloudflare: `wrangler delete --env staging` in the global and SvelteKit directories, and `wrangler delete --env staging-tenant-a` / `--env staging-tenant-b` in the tenant directory. Then `wrangler d1 delete takebase-staging-global` (and `-tenant-a`, `-tenant-b`).
+- Firebase: delete the two `takebase-staging-tenant-*` databases and the staging users in the Firebase console.
 
 ## CLI
 
