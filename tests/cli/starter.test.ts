@@ -73,6 +73,11 @@ describe("takebase help", () => {
 		expect(commandGroups.filter((group) => group.status === "implemented").map((group) => group.name)).toEqual([
 			"init",
 			"create",
+			"dev",
+			"build",
+			"deploy",
+			"doctor",
+			"tenant",
 			"collection",
 			"migrate",
 		]);
@@ -85,9 +90,9 @@ describe("takebase help", () => {
 	});
 
 	it("reports planned commands as not implemented instead of pretending", () => {
-		const { code, stderr } = cli("deploy", "--tenant", "acme");
+		const { code, stderr } = cli("backup", "create");
 		expect(code).toBe(1);
-		expect(stderr).toContain("`takebase deploy` is planned but not implemented yet");
+		expect(stderr).toContain("`takebase backup` is planned but not implemented yet");
 		expect(stderr).toContain("takebase --help");
 	});
 

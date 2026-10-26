@@ -1,7 +1,11 @@
 import { collectionCommand } from "./commands/collection.ts";
 import { createCommand } from "./commands/create.ts";
+import { buildCommand, deployCommand } from "./commands/deploy.ts";
+import { devCommand } from "./commands/dev.ts";
+import { doctorCommand } from "./commands/doctor.ts";
 import { initCommand } from "./commands/init.ts";
 import { migrateCommand } from "./commands/migrate.ts";
+import { tenantCommand } from "./commands/tenant.ts";
 import { findCommandGroup } from "./config.ts";
 import { CliError, type CliIo } from "./errors.ts";
 import { mainHelp, version } from "./help.ts";
@@ -11,11 +15,16 @@ export { commandGroups } from "./config.ts";
 export type { CliIo } from "./errors.ts";
 export { CliError } from "./errors.ts";
 
-const commands: Record<string, (args: string[], io: CliIo) => number> = {
+const commands: Record<string, (args: string[], io: CliIo) => number | Promise<number>> = {
 	init: initCommand,
 	create: createCommand,
 	collection: collectionCommand,
 	migrate: migrateCommand,
+	doctor: doctorCommand,
+	tenant: tenantCommand,
+	dev: devCommand,
+	build: buildCommand,
+	deploy: deployCommand,
 };
 
 const dispatch = (argv: string[], io: CliIo) => {
@@ -41,16 +50,22 @@ const dispatch = (argv: string[], io: CliIo) => {
 	});
 };
 
+const report = (io: CliIo, error: unknown) => {
+	if (error instanceof CliError) {
+		io.stderr(`Error: ${error.message}\n${error.hint === undefined ? "" : `${error.hint}\n`}`);
+		return error.exitCode;
+	}
+	io.stderr(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+	return 1;
+};
+
 // Runs the CLI and returns its exit code; never calls process.exit, so it can run in-process.
-export const run = (argv: string[], io: CliIo): number => {
+// Commands that talk to services (tenant, deploy, dev) are asynchronous and return a promise.
+export const run = (argv: string[], io: CliIo): number | Promise<number> => {
 	try {
-		return dispatch(argv, io);
+		const code = dispatch(argv, io);
+		return typeof code === "number" ? code : code.catch((error: unknown) => report(io, error));
 	} catch (error) {
-		if (error instanceof CliError) {
-			io.stderr(`Error: ${error.message}\n${error.hint === undefined ? "" : `${error.hint}\n`}`);
-			return error.exitCode;
-		}
-		io.stderr(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
-		return 1;
+		return report(io, error);
 	}
 };

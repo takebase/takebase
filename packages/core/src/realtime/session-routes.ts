@@ -3,6 +3,7 @@ import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { AuthIdentity } from "../rules/types.ts";
 import type { RealtimeAdapter } from "./adapter.ts";
+import { type RevocationSource, reconcileRevocation } from "./revocations.ts";
 
 // What the session endpoint needs from the Worker's composition root, per request.
 export type RealtimeRequest = {
@@ -14,6 +15,9 @@ export type RealtimeRequest = {
 	adapter: RealtimeAdapter | null;
 	// Runs after a grant succeeds; the Worker uses it to flush pending signals.
 	granted?: () => void;
+	// This tenant's id and the global Worker's revocation RPC, for reconcile.
+	tenantId?: string;
+	revocations?: RevocationSource | null;
 };
 
 export type RealtimeRoutesOptions = { resolve: () => RealtimeRequest };
@@ -41,6 +45,23 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 		granted?.();
 		const session: RealtimeSession = { uid: auth.id, revision: accessRevision, connection: { ...adapter.connection } };
 		return c.json(session);
+	});
+
+	// POST /api/realtime/reconcile: delivers a tenant-wide revocation that global
+	// D1 recorded (tenant disabled). The call carries no authority: the tenant
+	// Worker asks the global Worker what is owed and only ever revokes, so any
+	// caller may trigger it, and repeating it changes nothing.
+	routes.post("/api/realtime/reconcile", async (c) => {
+		const { adapter, revocations, tenantId } = resolve();
+		if (!adapter || !revocations || tenantId === undefined) {
+			return fail(c, "unavailable", "Realtime is not available");
+		}
+		try {
+			return c.json(await reconcileRevocation(revocations, adapter, tenantId));
+		} catch (error) {
+			console.error("Realtime revocation failed", error);
+			return fail(c, "unavailable", "Realtime revocation failed; it stays pending");
+		}
 	});
 
 	return routes;

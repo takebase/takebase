@@ -115,6 +115,22 @@ These are local emulator checks only, not remote Firebase evidence.
 
 Commands verified locally in Wave 1-3 (SEGU-209), run from the repository root with Node 24.21.0 and pnpm 12.15.0: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm exec vitest run tests/cli/starter.test.ts tests/contracts/public-api.test.ts tests/architecture/boundaries.test.ts`, and the CLI itself via `node packages/cli/src/bin.ts --help` / `init` / `create`. Only `init` and `create` are implemented; every other `takebase` command group is planned and exits with "not implemented yet".
 
+Commands verified in Wave 5-1 (SEGU-219), from the repository root with Node 24.21.0, pnpm 12.15.0, wrangler 4.151.3 and firebase-tools 15.34.0:
+- Locally:
+  - `pnpm lint`, `pnpm typecheck` and `pnpm test`;
+  - `pnpm exec vitest run tests/operations/provisioning.test.ts tests/cli/deploy-plan.test.ts tests/cli/starter.test.ts`;
+  - `pnpm dev:stack`, now `takebase dev --fresh --seed 'node tests/fixtures/seed.ts'`, and `pnpm test:e2e`;
+  - `node packages/cli/src/bin.ts build --env staging`.
+- Against approved staging:
+  - `node packages/cli/src/bin.ts doctor --env staging`;
+  - `tenant provision <id> --env staging --plan`;
+  - `deploy --env staging --plan` and `deploy --env staging --confirm staging`;
+  - `tenant create|disable|delete … --env staging`;
+  - `pnpm staging:seed` and `pnpm staging:journey`;
+  - `pnpm staging:e2e`, which passed when the human ran it from a normal terminal; the sandbox blocks Chromium's outbound network.
+
+`takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
+
 ## Git branches and Gitea CI mapping
 
 The Git default branch is `master` (not `main`). Remote `origin` is the Gitea repository `ssh://git@gitea.home.lan:2222/takebase/takebase.git`; Gitea runs CI and push-mirrors to GitHub.

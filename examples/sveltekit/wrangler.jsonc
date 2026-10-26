@@ -13,7 +13,7 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	// Approved staging (SEGU-218). The app's settings are baked in at build time
-	// (VITE_*), so build it with the staging:app:deploy root script.
+	// (VITE_*), so `takebase deploy --env staging` builds it with the staging settings.
 	"env": {
 		"staging": {
 			"name": "takebase-staging-app",

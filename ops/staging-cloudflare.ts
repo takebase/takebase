@@ -1,35 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import {
-	apiKey,
-	appUrl,
-	databaseUrl,
-	dispatcherEmail,
-	globalUrl,
-	opsPath,
-	password,
-	projectId,
-	signIn,
-	type Tenant,
-	tenants,
-	tenantUrl,
-	users,
-} from "./staging.ts";
+import { appUrl, databaseUrl, globalUrl, password, signIn, tenants, tenantUrl, users } from "./staging.ts";
 import { journey, resetSignals, seedStatements, signInAll, uidsOf } from "./staging-journey.ts";
 
-// SEGU-218 Section D: Cloudflare staging in the shared account, takebase-staging-*
-// only. One step at a time, from the repository root:
+// Staging fixtures and wiring checks (SEGU-218), run from the repository root.
+// Migrations and deploys belong to the CLI since SEGU-219:
 //
-//   pnpm staging:migrate               remote D1 migrations, then the remote list
-//   pnpm staging:deploy global         the global Worker
-//   pnpm staging:deploy tenant-a       a tenant Worker, its secrets uploaded with it
-//   pnpm staging:deploy app            the SvelteKit app, built with staging settings
-//   pnpm staging:check                 health, schema and wiring of what is deployed
+//   pnpm staging:deploy:plan           takebase deploy --env staging --plan (read-only)
+//   pnpm staging:deploy                takebase deploy --env staging --confirm staging
+//   pnpm staging:check                 takebase doctor --env staging, then the wiring below
 //   pnpm staging:seed                  tenants and memberships in the staging global D1
 //   pnpm staging:journey               the R-4-4-01 journey against the deployed Workers
-//
-// Secrets go up with each deploy from an untracked ops/.staging/*.secrets.json
-// (mode 600); nothing secret is passed on a command line or kept in the repo.
 
 const root = new URL("../", import.meta.url).pathname;
 const dir = (name: "global" | "tenant" | "sveltekit") =>
@@ -39,46 +19,6 @@ const exec = (cwd: string, command: string, args: string[], env: Record<string, 
 	execFileSync(command, args, { cwd, stdio: ["ignore", "inherit", "inherit"], env: { ...process.env, ...env } });
 
 const wrangler = (cwd: string, args: string[]) => exec(cwd, "pnpm", ["exec", "wrangler", ...args]);
-
-const tenantById = (id: string) => {
-	const tenant = tenants.find((candidate) => candidate.id === id);
-	if (!tenant) throw new Error(`Unknown tenant ${id}`);
-	return tenant;
-};
-
-const migrate = () => {
-	wrangler(dir("global"), ["d1", "migrations", "apply", "DB", "--remote", "--env", "staging"]);
-	for (const tenant of tenants) {
-		wrangler(dir("tenant"), ["d1", "migrations", "apply", "DB", "--remote", "--env", `staging-${tenant.id}`]);
-	}
-};
-
-const secretsFile = (tenant: Tenant) => {
-	mkdirSync(opsPath(".staging"), { recursive: true });
-	const path = opsPath(`.staging/${tenant.id}.secrets.json`);
-	const secrets = {
-		FIREBASE_API_KEY: apiKey(),
-		FIREBASE_DISPATCHER_EMAIL: dispatcherEmail(tenant),
-		FIREBASE_DISPATCHER_PASSWORD: password(`dispatcher-${tenant.id}`),
-	};
-	writeFileSync(path, `${JSON.stringify(secrets)}\n`, { mode: 0o600 });
-	return path;
-};
-
-const deploy = (target: string) => {
-	if (target === "global") return wrangler(dir("global"), ["deploy", "--env", "staging"]);
-	if (target === "app") {
-		const settings = {
-			VITE_TAKEBASE_GLOBAL_URL: globalUrl(),
-			VITE_FIREBASE_API_KEY: apiKey(),
-			VITE_FIREBASE_PROJECT_ID: projectId,
-		};
-		exec(dir("sveltekit"), "pnpm", ["exec", "vite", "build"], settings);
-		return wrangler(dir("sveltekit"), ["deploy", "--env", "staging"]);
-	}
-	const tenant = tenantById(target);
-	return wrangler(dir("tenant"), ["deploy", "--env", `staging-${tenant.id}`, "--secrets-file", secretsFile(tenant)]);
-};
 
 let failures = 0;
 const expect = (label: string, ok: boolean, detail: string) => {
@@ -95,28 +35,7 @@ const get = async (url: string, init: RequestInit = {}) => {
 	}
 };
 
-const pending = (cwd: string, env: string) => {
-	const output = execFileSync(
-		"pnpm",
-		["exec", "wrangler", "d1", "migrations", "list", "DB", "--remote", "--env", env],
-		{
-			cwd,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "pipe"],
-		},
-	);
-	return output.includes("No migrations to apply") ? "none pending" : output.split("\n").slice(-12).join("\n");
-};
-
 const check = async () => {
-	console.log("-- schema (wrangler d1 migrations list --remote)");
-	const globalSchema = pending(dir("global"), "staging");
-	expect("global D1 migrations", globalSchema === "none pending", globalSchema);
-	for (const tenant of tenants) {
-		const schema = pending(dir("tenant"), `staging-${tenant.id}`);
-		expect(`${tenant.id} D1 migrations`, schema === "none pending", schema);
-	}
-
 	console.log("-- deployed Workers");
 	const global = await get(`${globalUrl()}/health`);
 	expect(
@@ -148,7 +67,7 @@ const check = async () => {
 	}
 	const app = await get(appUrl());
 	expect("app page", app.status === 200 && app.body.includes("__sveltekit"), String(app.status));
-	console.log(failures === 0 ? "All Section D checks passed." : `${failures} check(s) failed.`);
+	console.log(failures === 0 ? "All wiring checks passed." : `${failures} check(s) failed.`);
 	process.exitCode = failures === 0 ? 0 : 1;
 };
 
@@ -169,13 +88,11 @@ const runJourney = async () => {
 	process.exitCode = failures === 0 ? 0 : 1;
 };
 
-const [command, target] = process.argv.slice(2);
-if (command === "migrate") migrate();
-else if (command === "seed") await seed();
+const [command] = process.argv.slice(2);
+if (command === "seed") await seed();
 else if (command === "journey") await runJourney();
-else if (command === "deploy" && target) deploy(target);
 else if (command === "check") await check();
 else {
-	console.error("usage: node ops/staging-cloudflare.ts migrate | deploy <target> | check | seed | journey");
+	console.error("usage: node ops/staging-cloudflare.ts check | seed | journey");
 	process.exitCode = 2;
 }
