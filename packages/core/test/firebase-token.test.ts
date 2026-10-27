@@ -45,7 +45,11 @@ const production = firebaseProvider({ projectId, emulator: false, keys });
 
 describe("Firebase ID token verification (R-3-1-01)", () => {
 	it("accepts a correctly signed token and derives the identity from its subject", async () => {
-		expect(await production.verify(await sign(claims()), now)).toEqual({ provider: "firebase", subject: "user-1" });
+		expect(await production.verify(await sign(claims()), now)).toEqual({
+			provider: "firebase",
+			subject: "user-1",
+			authTime: seconds - 60,
+		});
 	});
 
 	it("rejects forged, expired and wrong-project tokens", async () => {
@@ -69,7 +73,11 @@ describe("Firebase ID token verification (R-3-1-01)", () => {
 			...firebaseSettings({ FIREBASE_PROJECT_ID: projectId, TAKEBASE_AUTH_EMULATOR: "local-only" }),
 			keys,
 		});
-		expect(await emulator.verify(unsigned(claims()), now)).toEqual({ provider: "firebase", subject: "user-1" });
+		expect(await emulator.verify(unsigned(claims()), now)).toEqual({
+			provider: "firebase",
+			subject: "user-1",
+			authTime: seconds - 60,
+		});
 		await expect(emulator.verify(unsigned(claims({ exp: seconds - 1 })), now)).rejects.toThrow(InvalidTokenError);
 	});
 });

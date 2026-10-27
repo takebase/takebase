@@ -1,4 +1,14 @@
 export type {
+	AdminInvite,
+	AdminInviteState,
+	AdminMember,
+	AdminRole,
+	CreatedInvite,
+	InviteRedemption,
+	MemberRemoval,
+} from "./administration.ts";
+export { isInviteRedemption } from "./administration.ts";
+export type {
 	CollectionOperation,
 	CollectionRecord,
 	CreateInput,

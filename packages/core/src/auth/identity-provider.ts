@@ -4,8 +4,10 @@
 // Worker's RPC) depends only on it.
 
 // `subject` is the provider's stable user id (a Firebase uid). Memberships key
-// on provider and subject together, so adapters can never collide.
-export type VerifiedIdentity = { provider: string; subject: string };
+// on provider and subject together, so adapters can never collide. `authTime`
+// is when the user signed in (Unix seconds); revoking sessions refuses every
+// token from a sign-in before that moment.
+export type VerifiedIdentity = { provider: string; subject: string; authTime: number };
 
 export type IdentityProvider = {
 	name: string;

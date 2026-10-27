@@ -1,5 +1,6 @@
 import { type ErrorCode, errorStatus } from "@takebase/contracts";
 import type { AuthIdentity } from "../rules/types.ts";
+import { ensureAccepted } from "../services/identities-d1-service.ts";
 import { createMembershipsService } from "../services/memberships-d1-service.ts";
 import type { AnyD1Database } from "../storage/d1.ts";
 import { type IdentityProvider, InvalidTokenError, readBearerToken } from "./identity-provider.ts";
@@ -24,7 +25,8 @@ export type MembershipVerifier = {
 
 export type MembershipCheckContext = { identity: IdentityProvider; db: AnyD1Database; now: Date };
 
-// Global side: verify the token, then read the membership; no cache.
+// Global side: verify the token, check Takebase still accepts the identity
+// (not disabled, sessions not revoked), then read the membership; no cache.
 export const checkMembership = async (
 	{ identity, db, now }: MembershipCheckContext,
 	token: unknown,
@@ -33,7 +35,7 @@ export const checkMembership = async (
 	if (typeof token !== "string" || typeof tenantId !== "string") return { status: "invalid_token" };
 	let verified: Awaited<ReturnType<IdentityProvider["verify"]>>;
 	try {
-		verified = await identity.verify(token, now);
+		verified = await ensureAccepted(db, await identity.verify(token, now));
 	} catch (error) {
 		if (error instanceof InvalidTokenError) return { status: "invalid_token" };
 		throw error;

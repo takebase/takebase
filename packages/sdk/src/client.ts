@@ -1,11 +1,11 @@
-import type { TenantMembership } from "@takebase/contracts";
+import type { InviteRedemption, TenantMembership } from "@takebase/contracts";
 import { type FirebaseAuthLike, safeBaseUrl, tokenSource } from "./auth.ts";
 import { type CollectionClient, createCollectionClient } from "./collection.ts";
 import { TakebaseError } from "./errors.ts";
 import { createHttp, type Fetch, type Http, type RequestOptions } from "./http.ts";
 import { createTenantRealtime, type RealtimeOptions, type TenantRealtime } from "./realtime.ts";
 import type { SubscriptionCallback } from "./subscription.ts";
-import { fetchTenants } from "./tenant.ts";
+import { fetchTenants, redeemInvite } from "./tenant.ts";
 
 export type ClientOptions = {
 	// The global Worker's origin, e.g. "https://auth.example.com".
@@ -31,6 +31,10 @@ export type TakebaseClient = {
 		// Called after every SDK sign-out; clear all application state there.
 		// Returns a function that stops listening.
 		onSignedOut: (listener: (reason: SignOutReason) => void) => () => void;
+	};
+	invites: {
+		// Redeems a single-use invitation token for the signed-in user's new role.
+		redeem: (token: string, options?: RequestOptions) => Promise<InviteRedemption>;
 	};
 	// Selects a tenant the global Worker lists for this user; its URL comes from
 	// that answer, never from the caller.
@@ -138,6 +142,7 @@ export const createClient = ({
 				return () => signedOut.delete(listener);
 			},
 		},
+		invites: { redeem: (invite, options) => redeemInvite(global, invite, options) },
 		useTenant,
 		tenant: () => selection?.membership ?? null,
 		collection,

@@ -129,6 +129,10 @@ Commands verified in Wave 5-1 (SEGU-219), from the repository root with Node 24.
   - `pnpm staging:seed` and `pnpm staging:journey`;
   - `pnpm staging:e2e`, which passed when the human ran it from a normal terminal; the sandbox blocks Chromium's outbound network.
 
+Commands verified in Wave 5-2 (SEGU-220), with the same tool versions:
+- Locally: `pnpm journey:admin` against `pnpm dev:stack`, plus the `takebase user|tenant user|role|invite` commands it drives.
+- Against approved staging: `pnpm staging:journey:admin`, which uses the `probe` user only. `ops/staging-firebase.ts check` writes a timestamp revocation for `probe`; remove `/access/revoked/<probe uid>` with `firebase database:remove` before running the journey after that check.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

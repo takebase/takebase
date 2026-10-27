@@ -106,10 +106,10 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `init` / `create` | Generate a project starter | Implemented |
 | `dev` / `build` / `deploy` | Run locally, bundle, deploy a remote environment | Implemented |
 | `doctor` | Validate environment and configuration | Implemented (read-only) |
-| `user` | Create, list, disable, enable, delete users; revoke sessions | Planned |
+| `user` | Create, list, disable, enable, delete users; revoke sessions | Implemented (operator) |
 | `tenant` | Create, list, provision, disable, delete tenants | Implemented |
-| `tenant user` | Add/remove members and assign roles | Planned |
-| `role` / `invite` | Manage roles and invitations | Planned |
+| `tenant user` | Add/remove members and assign roles | Implemented (operator) |
+| `role` / `invite` | Manage roles and invitations | Implemented (operator) |
 | `collection` | Generate and inspect collections | Implemented |
 | `migrate` | Generate, inspect and apply local D1 migrations | Implemented (local only) |
 | `wire` | Test notifications and retry failed deliveries | Planned |
@@ -163,6 +163,23 @@ node packages/cli/src/bin.ts tenant delete tenant-c --confirm tenant-c   # regis
 ```
 
 `tenant disable` changes the status in one statement. Membership is read on every request, so the API refuses the tenant's members at once, and the same statement records a tenant-wide realtime revocation. The command then calls the tenant Worker's `/api/realtime/reconcile` (with backoff) until global D1 shows the revocation confirmed. If the Worker cannot be reached it exits 1 with the revocation still pending; run it again. `tenant delete` refuses unless the tenant is disabled, its revocation is confirmed and `--confirm <id>` repeats the id. It removes only the registration (memberships go with it) and prints the commands that would remove the tenant's resources, which it never runs itself.
+
+### Users, members, roles and invitations
+
+```sh
+node packages/cli/src/bin.ts user create --email carol@example.test --password-file carol.pw   # password only in carol.pw (mode 600)
+node packages/cli/src/bin.ts role create tenant-a support
+node packages/cli/src/bin.ts tenant user add tenant-a <uid> --role support
+node packages/cli/src/bin.ts tenant user remove tenant-a <uid>          # ends the membership, revokes realtime
+node packages/cli/src/bin.ts user disable <uid>                         # refused everywhere, realtime revoked
+node packages/cli/src/bin.ts user revoke-sessions <uid>                 # tokens from earlier sign-ins refused
+node packages/cli/src/bin.ts invite create tenant-a --role support      # prints a single-use token once
+```
+
+These commands are the operator's: they write global D1 with your Cloudflare login (add `--env staging` for the approved staging), and each change is recorded in `audit_events`.
+- **Rules:** global D1's triggers enforce them, so a refused change leaves nothing behind. A role must be declared for the tenant before anyone can hold it, and `admin` is built in. A tenant never loses its last admin.
+- **Users are refused by Takebase itself.** A disabled or deleted user, or a token from a sign-in before `revoke-sessions`, gets 401 everywhere. The SDK then signs them out. The Firebase account is never disabled or deleted.
+- **Realtime:** a user who loses access also loses realtime. The command calls each tenant Worker's reconcile until the revocation is confirmed; if a Worker cannot be reached, it exits 1 and you run it again.
 
 ### Dev, build and deploy
 

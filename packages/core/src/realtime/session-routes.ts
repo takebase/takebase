@@ -33,9 +33,19 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 	const routes = new Hono();
 
 	routes.post("/api/realtime/session", async (c) => {
-		const { auth, accessRevision, adapter, granted } = resolve();
+		const { auth, accessRevision, adapter, granted, revocations, tenantId } = resolve();
 		if (!auth) return fail(c, "unauthenticated", "Authentication required");
 		if (!adapter || accessRevision === null) return fail(c, "unavailable", "Realtime is not available");
+		// Deliver whatever the tenant still owes before granting, so a pending
+		// revocation is never written after (and over) this grant. A failure only
+		// leaves it pending; the session still opens.
+		if (revocations && tenantId !== undefined) {
+			try {
+				await reconcileRevocation(revocations, adapter, tenantId);
+			} catch (error) {
+				console.error("Realtime revocation failed; it stays pending", error);
+			}
+		}
 		try {
 			await adapter.grant(auth.id, accessRevision);
 		} catch (error) {
@@ -47,8 +57,9 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 		return c.json(session);
 	});
 
-	// POST /api/realtime/reconcile: delivers a tenant-wide revocation that global
-	// D1 recorded (tenant disabled). The call carries no authority: the tenant
+	// POST /api/realtime/reconcile: delivers the revocations global D1 recorded
+	// for this tenant (tenant disabled; members removed, disabled or with
+	// revoked sessions). The call carries no authority: the tenant
 	// Worker asks the global Worker what is owed and only ever revokes, so any
 	// caller may trigger it, and repeating it changes nothing.
 	routes.post("/api/realtime/reconcile", async (c) => {

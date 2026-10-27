@@ -54,7 +54,7 @@ export { toRecordChangeEvent } from "./realtime/events.ts";
 export { outbox, outboxOperations, outboxStatuses } from "./realtime/outbox.ts";
 export type { Backoff } from "./realtime/retry.ts";
 export { defaultBackoff, retryDelay } from "./realtime/retry.ts";
-export type { ReconcileResult, RevocationSource } from "./realtime/revocations.ts";
+export type { MemberRevocation, ReconcileResult, RevocationSource } from "./realtime/revocations.ts";
 export { reconcileRevocation } from "./realtime/revocations.ts";
 export type { RealtimeRequest, RealtimeRoutesOptions } from "./realtime/session-routes.ts";
 export { createRealtimeRoutes } from "./realtime/session-routes.ts";
@@ -65,8 +65,16 @@ export { authenticated, deny, hasRole, tenantMember } from "./rules/builtins.ts"
 export type { Decision } from "./rules/evaluate.ts";
 export { evaluateRule } from "./rules/evaluate.ts";
 export type { AuthIdentity, CollectionRules, Rule, RuleContext } from "./rules/types.ts";
+export {
+	AdminError,
+	actorOf,
+	adminRoleName,
+	createAdministrationService,
+	inviteTokenHash,
+} from "./services/administration-d1-service.ts";
 export type { CollectionsService } from "./services/collections-d1-service.ts";
 export { createCollectionsService, recordExists } from "./services/collections-d1-service.ts";
+export { createIdentitiesService, ensureAccepted } from "./services/identities-d1-service.ts";
 export type { MembershipsService } from "./services/memberships-d1-service.ts";
 export { createMembershipsService } from "./services/memberships-d1-service.ts";
 export type { ClaimedEvent, ClaimOptions, OutboxService, RetryOptions } from "./services/outbox-d1-service.ts";
@@ -74,4 +82,15 @@ export { createOutboxService } from "./services/outbox-d1-service.ts";
 export type { RevocationsService } from "./services/revocations-d1-service.ts";
 export { createRevocationsService } from "./services/revocations-d1-service.ts";
 export type { AnyD1Database } from "./storage/d1.ts";
-export { memberships, tenantRevocations, tenantStatuses, tenants } from "./tenancy/schema.ts";
+export {
+	auditEvents,
+	identities,
+	identityStatuses,
+	invitations,
+	memberRevocations,
+	memberships,
+	tenantRevocations,
+	tenantRoles,
+	tenantStatuses,
+	tenants,
+} from "./tenancy/schema.ts";

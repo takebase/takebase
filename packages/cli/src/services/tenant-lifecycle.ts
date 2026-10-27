@@ -1,4 +1,6 @@
 import { CliError } from "../errors.ts";
+import type { EnvironmentConfig, ProjectConfig } from "../project-config.ts";
+import { queryD1 } from "./environment.ts";
 
 // Disabling and deleting a registered tenant, against global D1. Disable is
 // one guarded UPDATE: the membership check reads status on every request, so
@@ -98,3 +100,20 @@ export const deleteTenant = (deps: LifecycleDeps, id: string, confirm: string | 
 	}
 	return current.url;
 };
+
+// The real dependencies: global D1 through Wrangler (pinned to the
+// environment's account when remote) and the tenant Workers over HTTP.
+export const lifecycleDeps = (project: ProjectConfig, environment: EnvironmentConfig): LifecycleDeps => ({
+	query: (sql) => queryD1(project.workers.global, environment.globalEnv, environment, sql),
+	reconcile: async (url) => {
+		try {
+			const response = await fetch(`${url}/api/realtime/reconcile`, { method: "POST" });
+			await response.body?.cancel();
+			return response.status;
+		} catch {
+			return 0;
+		}
+	},
+	wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+	now: () => new Date(),
+});

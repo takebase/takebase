@@ -2,6 +2,8 @@ import { browserCors } from "@takebase/core";
 import { Hono } from "hono";
 import { createContext } from "./context.ts";
 import { runInRequest, useContext } from "./request-store.ts";
+import { adminRoutes } from "./routes/admin.ts";
+import { inviteRoutes } from "./routes/invites.ts";
 import { tenantRoutes } from "./routes/tenants.ts";
 
 // Set per deployment (locally with `wrangler dev --var`); not in wrangler.jsonc.
@@ -24,3 +26,5 @@ app.get("/health", async (c) => {
 });
 
 app.route("/api/tenants", tenantRoutes);
+app.route("/api/admin/tenants", adminRoutes);
+app.route("/api/invites", inviteRoutes);

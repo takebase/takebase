@@ -16,7 +16,10 @@ describe("tenants.access_revision (S-4-2-01)", () => {
 
 		await addMember("hooli", "user-1", "editor");
 		expect(await revision("hooli")).toBe(1);
-		await run("update memberships set role = 'admin' where subject = 'user-1' and tenant_id = 'hooli'");
+		// Declaring a role is not an access change; assigning it is.
+		await run("insert into tenant_roles (tenant_id, name, created) values ('hooli', 'manager', 'now')");
+		expect(await revision("hooli")).toBe(1);
+		await run("update memberships set role = 'manager' where subject = 'user-1' and tenant_id = 'hooli'");
 		expect(await revision("hooli")).toBe(2);
 		await run("update tenants set status = 'disabled' where id = 'hooli'");
 		expect(await revision("hooli")).toBe(3);

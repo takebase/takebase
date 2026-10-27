@@ -171,6 +171,7 @@ const globalDatabase = () => {
 	db.exec(
 		`insert into tenants (id, name, url, status, created, updated) values ('acme', 'Acme', 'https://acme.example.test', 'active', '${now}', '${now}')`,
 	);
+	db.exec(`insert into tenant_roles (tenant_id, name, created) values ('acme', 'agent', '${now}')`);
 	db.exec(
 		`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values ('m1', 'acme', 'firebase', 'alice', 'agent', '${now}', '${now}')`,
 	);
