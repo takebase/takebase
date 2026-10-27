@@ -133,6 +133,10 @@ Commands verified in Wave 5-2 (SEGU-220), with the same tool versions:
 - Locally: `pnpm journey:admin` against `pnpm dev:stack`, plus the `takebase user|tenant user|role|invite` commands it drives.
 - Against approved staging: `pnpm staging:journey:admin`, which uses the `probe` user only. `ops/staging-firebase.ts check` writes a timestamp revocation for `probe`; remove `/access/revoked/<probe uid>` with `firebase database:remove` before running the journey after that check.
 
+Commands verified in Wave 5-3 (SEGU-221), with the same tool versions:
+- Locally: `pnpm smoke:diagnostics` (lint, typecheck, test, `takebase health`, the S-5-3-01 journey `pnpm journey:wire`), `pnpm dev:stack:stop` (`takebase dev --stop`), and `takebase wire status|test|retry`.
+- Against approved staging: `pnpm staging:health`, `pnpm staging:journey:wire` (`probe` is tenant-a's only admin since SEGU-221, so the journey keeps it) and `pnpm staging:logs` (`takebase logs tenant-a --env staging --for 60`); `pnpm staging:e2e` passed when the human ran it.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

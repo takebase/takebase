@@ -67,3 +67,19 @@ export const dispatchOutbox = async ({
 	} while (now().getTime() < deadline);
 	return result;
 };
+
+// Delivered events are kept this long, then pruned by the next delivery run.
+export const deliveredRetentionMs = 7 * 24 * 60 * 60 * 1000;
+const pruneLimit = 500;
+
+// One delivery run as the Worker performs it: dispatch, then prune delivered
+// events past retention (at most 500 per run). Dead events are never pruned.
+export const deliverOutbox = async ({
+	outbox,
+	adapter,
+	now = () => new Date(),
+}: Pick<DispatchOptions, "outbox" | "adapter" | "now">) => {
+	const result = await dispatchOutbox({ outbox, adapter, now });
+	const pruned = await outbox.pruneDelivered(new Date(now().getTime() - deliveredRetentionMs), pruneLimit);
+	return { ...result, pruned };
+};

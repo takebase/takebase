@@ -1,5 +1,5 @@
 import type { RecordChangeEvent } from "@takebase/contracts";
-import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { toRecordChangeEvent } from "../realtime/events.ts";
 import { outbox } from "../realtime/outbox.ts";
 import { type AnyD1Database, createDatabase } from "../storage/d1.ts";
@@ -75,7 +75,63 @@ export const createOutboxService = (d1: AnyD1Database) => {
 		return rows.length > 0;
 	};
 
-	return { claim, acknowledge, retry };
+	// Operator diagnostics: counts per status and the oldest event still pending.
+	const summary = async () => {
+		const rows = await db
+			.select({
+				status: outbox.status,
+				count: sql<number>`count(*)`,
+				oldest: sql<string | null>`min(${outbox.created})`,
+			})
+			.from(outbox)
+			.groupBy(outbox.status);
+		const counts = { pending: 0, delivered: 0, dead: 0 };
+		for (const row of rows) counts[row.status] = row.count;
+		return { counts, oldestPending: rows.find((row) => row.status === "pending")?.oldest ?? null };
+	};
+
+	// The newest dead events: delivery metadata only, never the record id.
+	const deadEvents = (limit: number) =>
+		db
+			.select({
+				seq: outbox.seq,
+				id: outbox.id,
+				collection: outbox.collection,
+				operation: outbox.operation,
+				attempts: outbox.attempts,
+				created: outbox.created,
+				availableAt: outbox.available_at,
+			})
+			.from(outbox)
+			.where(eq(outbox.status, "dead"))
+			.orderBy(desc(outbox.seq))
+			.limit(limit);
+
+	// Puts dead events (the given ids, or all of them) back in the queue with a
+	// fresh attempt budget. Only dead events change; returns how many did.
+	const revive = async (selection: { ids: string[] } | { dead: true }, now: Date) => {
+		const dead = eq(outbox.status, "dead");
+		const rows = await db
+			.update(outbox)
+			.set({ status: "pending", attempts: 0, available_at: now.toISOString(), lease_token: null, lease_until: null })
+			.where("ids" in selection ? and(dead, inArray(outbox.id, selection.ids)) : dead)
+			.returning({ id: outbox.id });
+		return rows.length;
+	};
+
+	// Retention: deletes up to `limit` events delivered before `before`.
+	const pruneDelivered = async (before: Date, limit: number) => {
+		const old = db
+			.select({ seq: outbox.seq })
+			.from(outbox)
+			.where(and(eq(outbox.status, "delivered"), lt(outbox.delivered_at, before.toISOString())))
+			.orderBy(asc(outbox.seq))
+			.limit(limit);
+		const rows = await db.delete(outbox).where(inArray(outbox.seq, old)).returning({ seq: outbox.seq });
+		return rows.length;
+	};
+
+	return { claim, acknowledge, retry, summary, deadEvents, revive, pruneDelivered };
 };
 
 export type OutboxService = ReturnType<typeof createOutboxService>;

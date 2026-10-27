@@ -83,6 +83,9 @@ describe("takebase help", () => {
 			"invite",
 			"collection",
 			"migrate",
+			"wire",
+			"logs",
+			"health",
 		]);
 	});
 

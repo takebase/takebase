@@ -26,11 +26,11 @@ export const commandGroups: readonly CommandGroup[] = [
 	{ name: "invite", summary: "Manage tenant invitations", status: "implemented" },
 	{ name: "collection", summary: "Generate and inspect collections", status: "implemented" },
 	{ name: "migrate", summary: "Generate, inspect and apply local D1 migrations", status: "implemented" },
-	{ name: "wire", summary: "Test notifications and retry failed deliveries", status: "planned" },
+	{ name: "wire", summary: "Test notifications and retry failed deliveries", status: "implemented" },
 	{ name: "secrets", summary: "Initialize, rotate, check and revoke encrypted secrets", status: "planned" },
 	{ name: "backup", summary: "Create, list, verify, restore and prune backups", status: "planned" },
-	{ name: "logs", summary: "Inspect request and error logs", status: "planned" },
-	{ name: "health", summary: "Check Worker and database health", status: "planned" },
+	{ name: "logs", summary: "Inspect request and error logs", status: "implemented" },
+	{ name: "health", summary: "Check Worker and database health", status: "implemented" },
 ];
 
 export const findCommandGroup = (name: string) => commandGroups.find((group) => group.name === name);

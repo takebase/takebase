@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCommandArgs } from "../args.ts";
@@ -22,7 +22,7 @@ import { resolveTarget } from "../worker-target.ts";
 // with the local provider, runs an optional seed command, then serves the
 // global Worker, each tenant Worker and the app until interrupted.
 
-const usage = "takebase dev [--env <name>] [--fresh] [--seed <command>]";
+const usage = "takebase dev [--env <name>] [--fresh] [--seed <command>]\n       takebase dev --stop [--env <name>]";
 
 const help = `Run the local stack: emulators, the global Worker, every tenant Worker and the app.
 
@@ -32,16 +32,20 @@ Options:
   --env <name>      Local environment from takebase.jsonc (default: local)
   --fresh           Start every tenant's local D1 empty (removes .wrangler/state-<tenant>)
   --seed <command>  Shell command run after provisioning, before the Workers start
+  --stop            Stop a running stack: every process listening on its ports
   -h, --help        Show this help
 
 Only emulators and local D1 are used; nothing reaches Firebase or Cloudflare.
-Press Ctrl-C to stop every process.
+Press Ctrl-C to stop every process. If anything keeps a port afterwards (the
+emulators and each wrangler run in their own process groups), run
+\`takebase dev --stop\` from another terminal.
 `;
 
 const options = {
 	env: { type: "string" },
 	fresh: { type: "boolean" },
 	seed: { type: "string" },
+	stop: { type: "boolean" },
 	help: { type: "boolean", short: "h" },
 } as const;
 
@@ -216,6 +220,96 @@ const stack = async (
 	return code;
 };
 
+// Every port the stack listens on: the Workers, the app, the Workers'
+// inspectors and the Firebase emulators (firebase.json, plus the hub and
+// logging defaults).
+const stackPorts = (project: ProjectConfig, environment: EnvironmentConfig) => {
+	const ports = new Set<number>([4400, 4500]);
+	for (const port of [environment.globalPort, environment.appPort, ...environment.tenants.map((t) => t.port)]) {
+		if (port !== undefined) ports.add(port);
+	}
+	for (let index = 0; index <= environment.tenants.length; index++) ports.add(9230 + index);
+	const firebaseFile = join(project.root, "firebase.json");
+	if (existsSync(firebaseFile)) {
+		const emulators = (JSON.parse(readFileSync(firebaseFile, "utf8")) as { emulators?: Record<string, unknown> })
+			.emulators;
+		for (const value of Object.values(emulators ?? {})) {
+			const port = (value as { port?: unknown } | null)?.port;
+			if (typeof port === "number") ports.add(port);
+		}
+	}
+	return [...ports].sort((a, b) => a - b);
+};
+
+const listeners = (port: number) =>
+	(spawnSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8" }).stdout ?? "")
+		.split("\n")
+		.map(Number)
+		.filter((pid) => Number.isInteger(pid) && pid > 1);
+
+const describeProcess = (pid: number) => {
+	const out = spawnSync("ps", ["-o", "pgid=,comm=", "-p", String(pid)], { encoding: "utf8" }).stdout?.trim() ?? "";
+	const [pgid, ...command] = out.split(/\s+/);
+	return { pgid: Number(pgid), command: command.join(" ").split("/").at(-1) ?? "" };
+};
+
+const alive = (pid: number) => {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+// Stops whatever holds the stack's ports, with its whole process group (wrangler
+// with its workerd, the emulators with their exec wrapper). Never this
+// process's own group. SIGTERM first, SIGKILL for anything still there.
+const stopStack = async (io: CliIo, project: ProjectConfig, environment: EnvironmentConfig) => {
+	const ownGroup = describeProcess(process.pid).pgid;
+	const groups = new Map<number, Set<string>>();
+	const pids = new Set<number>();
+	for (const port of stackPorts(project, environment)) {
+		for (const pid of listeners(port)) {
+			const { pgid, command } = describeProcess(pid);
+			pids.add(pid);
+			if (!Number.isInteger(pgid) || pgid <= 1 || pgid === ownGroup) continue;
+			groups.set(pgid, (groups.get(pgid) ?? new Set()).add(`${command} :${port}`));
+		}
+	}
+	if (pids.size === 0) {
+		io.stdout("No process is listening on the local stack's ports.\n");
+		return 0;
+	}
+	const signal = (sig: NodeJS.Signals) => {
+		for (const pgid of groups.keys()) {
+			try {
+				process.kill(-pgid, sig);
+			} catch {}
+		}
+		for (const pid of pids) {
+			try {
+				if (alive(pid)) process.kill(pid, sig);
+			} catch {}
+		}
+	};
+	for (const [pgid, held] of groups) io.stdout(`Stopping process group ${pgid} (${[...held].join(", ")})\n`);
+	signal("SIGTERM");
+	for (let attempt = 0; attempt < 20 && [...pids].some(alive); attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 250));
+	}
+	if ([...pids].some(alive)) signal("SIGKILL");
+	await new Promise((resolve) => setTimeout(resolve, 250));
+	const left = stackPorts(project, environment).filter((port) => listeners(port).length > 0);
+	if (left.length > 0) {
+		throw new CliError(`Ports still in use: ${left.join(", ")}`, {
+			hint: "Another user's process, or one this CLI may not signal, holds them; check with `lsof -nP -iTCP -sTCP:LISTEN`.",
+		});
+	}
+	io.stdout("The local stack is stopped; its ports are free.\n");
+	return 0;
+};
+
 export const devCommand = async (args: string[], io: CliIo) => {
 	const { values, positionals } = parseCommandArgs("dev", args, options);
 	if (values.help === true) {
@@ -232,6 +326,12 @@ export const devCommand = async (args: string[], io: CliIo) => {
 			usage: true,
 			hint: `Deploy it with \`takebase deploy --env ${environment.name}\`.`,
 		});
+	}
+	if (values.stop === true) {
+		if (values.fresh === true || values.seed !== undefined) {
+			throw new CliError("--stop takes no --fresh or --seed", { usage: true, hint: `Usage: ${usage}` });
+		}
+		return stopStack(io, project, environment);
 	}
 	if (!insideEmulators()) return underEmulators(project, environment, args);
 	return stack(io, project, environment, values.fresh === true, values.seed);

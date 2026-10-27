@@ -2,10 +2,13 @@ import {
 	AuthError,
 	authenticateTenantMember,
 	browserCors,
+	checkReadiness,
 	createCollectionRoutes,
+	createDiagnosticsRoutes,
+	createLogger,
 	createOutboxService,
 	createRealtimeRoutes,
-	dispatchOutbox,
+	deliverOutbox,
 } from "@takebase/core";
 import { type Context, Hono } from "hono";
 import { collections } from "./collections/index.ts";
@@ -29,13 +32,14 @@ const executionContext = (c: Context) => {
 	}
 };
 
-// Sends committed outbox events to realtime after the response; there is no cron.
+// Sends committed outbox events to realtime after the response, then prunes
+// delivered events past retention; there is no cron.
 const dispatch = () => {
-	const { realtime, db, waitUntil } = useContext();
+	const { realtime, db, waitUntil, log } = useContext();
 	if (!realtime) return;
 	waitUntil(
-		dispatchOutbox({ outbox: createOutboxService(db), adapter: realtime }).catch((error) =>
-			console.error("Realtime dispatch failed", error),
+		deliverOutbox({ outbox: createOutboxService(db), adapter: realtime }).catch((error) =>
+			log.error("realtime.dispatch_failed", { error }),
 		),
 	);
 };
@@ -43,9 +47,11 @@ const dispatch = () => {
 // The global Worker said this verified user is not a member: end any realtime
 // access they still hold, at the revision of that answer.
 const revoke = (subject: string, revision: number) => {
-	const { realtime, waitUntil } = useContext();
+	const { realtime, waitUntil, log } = useContext();
 	if (!realtime) return;
-	waitUntil(realtime.revoke(subject, revision).catch((error) => console.error("Realtime revocation failed", error)));
+	waitUntil(
+		realtime.revoke(subject, revision).catch((error) => log.error("realtime.revocation_failed", { revision, error })),
+	);
 };
 
 export const app = new Hono<{ Bindings: CloudflareBindings & BrowserVars }>();
@@ -54,12 +60,25 @@ export const app = new Hono<{ Bindings: CloudflareBindings & BrowserVars }>();
 // answered here, before the membership guard.
 app.use("*", (c, next) => browserCors(c.env.CORS_ORIGINS)(c, next));
 
+// Unexpected failures: one redacted log line, and a generic envelope that never
+// carries the error itself. Outside a request scope (the composition root
+// failed) the line has no request id.
+app.onError((error, c) => {
+	let log = createLogger({ service: "tenant" });
+	try {
+		log = useContext().log;
+	} catch {}
+	log.error("request.unhandled", { method: c.req.method, path: c.req.path, error });
+	return c.json({ error: { code: "internal", message: "Internal error" } }, 500);
+});
+
 // The tenant's membership guard (Laravel's `auth` middleware): the caller's
 // identity comes only from the global Worker's answer for this tenant's own
 // TENANT_ID. Headers naming a user, role or tenant are never read.
 app.use("*", (c, next) =>
 	runInRequest(createContext(c.env, c.req.raw, executionContext(c)), async () => {
-		const { membership, tenantId } = useContext();
+		const { membership, tenantId, requestId } = useContext();
+		c.header("x-request-id", requestId);
 		try {
 			const member = await authenticateTenantMember(membership, tenantId, c.req.header("authorization"), {
 				notMember: revoke,
@@ -79,6 +98,26 @@ app.get("/health", async (c) => {
 	return c.json({ service, tenantId, status: "ok", database: (await checkDatabase()) ? "ok" : "error" });
 });
 
+// Dependency readiness; `/health` above stays the plain liveness answer. The
+// global check reads this tenant's pending revocation over the RPC binding;
+// realtime is only checked for settings, so health never signs in to Firebase.
+app.get("/health/ready", async (c) => {
+	const { service, tenantId, revocations, realtime, log } = useContext();
+	const readiness = await checkReadiness(
+		service,
+		{
+			database: checkDatabase,
+			global: async () => {
+				await revocations.pendingRevocation(tenantId);
+				return true;
+			},
+			realtime: async () => (realtime ? true : "unconfigured"),
+		},
+		log,
+	);
+	return c.json({ ...readiness, tenantId }, readiness.status === "error" ? 503 : 200);
+});
+
 app.route(
 	"/",
 	createRealtimeRoutes({
@@ -90,6 +129,25 @@ app.route(
 			tenantId: useContext().tenantId,
 			revocations: useContext().revocations,
 		}),
+	}),
+);
+
+app.route(
+	"/",
+	createDiagnosticsRoutes({
+		resolve: () => {
+			const { db, tenantId, realtime, revocations, log, now } = useContext();
+			return {
+				auth: requestLocals.get("auth") ?? null,
+				db,
+				tenantId,
+				adapter: realtime,
+				revocations,
+				log,
+				now,
+				dispatch,
+			};
+		},
 	}),
 );
 

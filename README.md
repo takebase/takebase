@@ -39,7 +39,7 @@ Run a Worker locally from its directory with `pnpm dev`, for example `pnpm --fil
 
 ## Local milestone
 
-`pnpm dev:stack` runs the whole product locally: the Firebase Auth and RTDB emulators, the global Worker, two tenant Workers (`tenant-a`, `tenant-b`) and the SvelteKit app at `http://localhost:5173`, with seeded users and fresh tenant databases on every start. It is `takebase dev --fresh --seed 'node tests/fixtures/seed.ts'`: `takebase dev` provisions every tenant declared in `takebase.jsonc` (see [Tenants](#tenants)) and the fixture seed adds the users and their memberships. Emulators and local D1 only; no Firebase or Cloudflare account is used. The [SvelteKit example README](examples/sveltekit/README.md) lists the users and what to try.
+`pnpm dev:stack` runs the whole product locally: the Firebase Auth and RTDB emulators, the global Worker, two tenant Workers (`tenant-a`, `tenant-b`) and the SvelteKit app at `http://localhost:5173`, with seeded users and fresh tenant databases on every start. It is `takebase dev --fresh --seed 'node tests/fixtures/seed.ts'`: `takebase dev` provisions every tenant declared in `takebase.jsonc` (see [Tenants](#tenants)) and the fixture seed adds the users and their memberships. Emulators and local D1 only; no Firebase or Cloudflare account is used. The [SvelteKit example README](examples/sveltekit/README.md) lists the users and what to try. Stop it with `pnpm dev:stack:stop` (`takebase dev --stop`) from another terminal: Ctrl-C can leave the emulators or a `wrangler`/`workerd` holding a port, and the stop command ends every process listening on the stack's ports.
 
 `pnpm test:e2e` starts a fresh stack and runs the browser tests in Chromium (install it once with `pnpm exec playwright install chromium`). They cover creating a policy and seeing it arrive by realtime, switching tenants, reconnecting, signing out and a removed member being signed out.
 
@@ -77,8 +77,11 @@ pnpm staging:local:check      # the real Workers via wrangler dev, against real 
 pnpm staging:deploy:plan      # takebase deploy --env staging --plan: read-only
 pnpm staging:deploy           # takebase deploy --env staging --confirm staging: migrations, Workers, app
 pnpm staging:check            # takebase doctor --env staging, then health, membership RPC, app page
+pnpm staging:health           # takebase health --env staging: every Worker live and ready
+pnpm staging:logs             # takebase logs tenant-a --env staging --for 60: live, redacted
 pnpm staging:seed             # tenants and memberships; clears the tenants' RTDB signals
 pnpm staging:journey          # identity → tenant → create → signal → refetch, negative auth, isolation
+pnpm staging:journey:wire     # S-5-3-01: a dead notification inspected, refused to others, retried, refetched
 pnpm staging:e2e              # the browser journey against the deployed app
 ```
 
@@ -112,10 +115,11 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `role` / `invite` | Manage roles and invitations | Implemented (operator) |
 | `collection` | Generate and inspect collections | Implemented |
 | `migrate` | Generate, inspect and apply local D1 migrations | Implemented (local only) |
-| `wire` | Test notifications and retry failed deliveries | Planned |
+| `wire` | Inspect notification delivery, test it, retry dead events | Implemented (operator) |
 | `secrets` | Initialize, rotate, check and revoke secrets | Planned |
 | `backup` | Create, list, verify, restore and prune backups | Planned |
-| `logs` / `health` | Diagnostics and monitoring | Planned |
+| `health` | Liveness and readiness of every Worker and the app | Implemented (read-only) |
+| `logs` | Live, redacted request and error logs of a deployed Worker | Implemented (remote, read-only) |
 
 Planned commands exit with an error saying they are not implemented yet.
 
@@ -180,6 +184,22 @@ These commands are the operator's: they write global D1 with your Cloudflare log
 - **Rules:** global D1's triggers enforce them, so a refused change leaves nothing behind. A role must be declared for the tenant before anyone can hold it, and `admin` is built in. A tenant never loses its last admin.
 - **Users are refused by Takebase itself.** A disabled or deleted user, or a token from a sign-in before `revoke-sessions`, gets 401 everywhere. The SDK then signs them out. The Firebase account is never disabled or deleted.
 - **Realtime:** a user who loses access also loses realtime. The command calls each tenant Worker's reconcile until the revocation is confirmed; if a Worker cannot be reached, it exits 1 and you run it again.
+
+### Health, logs and notification repair
+
+```sh
+pnpm smoke:diagnostics                                           # local acceptance: checks, health, the S-5-3-01 journey
+node packages/cli/src/bin.ts health [--env staging]              # /health and /health/ready of every Worker, then the app
+node packages/cli/src/bin.ts wire status tenant-a [--env staging] # outbox counts, dead events, revocations owed
+node packages/cli/src/bin.ts wire test tenant-a                  # deliver what is pending once
+node packages/cli/src/bin.ts wire retry tenant-a --dead          # or --event <id>…: revive dead events, deliver with retries
+pnpm staging:logs                                                # live tenant-a logs on staging for 60 s
+```
+
+- **Health:** `/health` is liveness. `/health/ready` reports each dependency as `ok`, `error` or `unconfigured`, never why (HTTP 503 on error); the reason goes to the Worker's log.
+- **Logs:** every Worker log line is one redacted JSON event carrying the request's `x-request-id` (a well-formed client id, else `cf-ray`, else a UUID). Tokens, passwords, secrets, sensitive URL parameters and email addresses are masked, and errors keep only name and message. `takebase logs` streams `wrangler tail` and prints method, path without its query, status and request id per request, also masking the secrets file's values. Nothing is stored; history stays in Cloudflare's Workers Logs.
+- **Notification repair:** an outbox event that fails 10 times is parked as dead. `wire` is the operator's view (Cloudflare login, tenant and global D1). A tenant's `admin` has the same through its tenant Worker: `GET /api/admin/diagnostics` and `POST /api/admin/outbox/retry` (`{"ids": [...]}` or `{"dead": true}`). Retries republish collection revisions only; clients refetch through the collection rules. `POST /api/realtime/dispatch` flushes pending events without authority, like reconcile.
+- **Retention:** delivery runs delete delivered events older than 7 days (500 per run); dead events stay until retried. Diagnostics never show record ids or fields.
 
 ### Dev, build and deploy
 
