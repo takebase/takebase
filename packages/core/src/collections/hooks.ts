@@ -1,4 +1,5 @@
 import type { CollectionRecord, FieldErrors } from "@takebase/contracts";
+import { createLogger, type Logger } from "../diagnostics/log.ts";
 import type { AuthIdentity } from "../rules/types.ts";
 
 // Laravel-style model events. Hooks run only after the rule allowed the
@@ -78,11 +79,18 @@ export const hookOutput = (
 	return result;
 };
 
+const fallbackLog = createLogger({ service: "takebase" });
+
 // Runs an after-hook; the write is already committed, so errors are only logged.
-export const runAfterHook = async (name: string, hook: string, run: () => Awaitable<void>) => {
+export const runAfterHook = async (
+	name: string,
+	hook: string,
+	run: () => Awaitable<void>,
+	log: Logger = fallbackLog,
+) => {
 	try {
 		await run();
 	} catch (error) {
-		console.error(`Collection "${name}" hook "${hook}" failed after the write`, error);
+		log.error("collection.hook_failed", { collection: name, hook, error });
 	}
 };

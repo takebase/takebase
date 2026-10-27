@@ -1,5 +1,12 @@
 import { firebaseRealtime } from "@takebase/adapter-firebase";
-import type { MembershipVerifier, RealtimeAdapter, RevocationSource } from "@takebase/core";
+import {
+	createLogger,
+	type Logger,
+	type MembershipVerifier,
+	type RealtimeAdapter,
+	type RevocationSource,
+	requestIdOf,
+} from "@takebase/core";
 
 // Composition root: settings, service clients and per-request values.
 // Each tenant runs as its own Worker deployment bound to its own D1 database.
@@ -17,6 +24,9 @@ export type AppContext = {
 	// Keeps background work (dispatch, revocation) alive after the response.
 	waitUntil: (work: Promise<unknown>) => void;
 	clientIp: string | null;
+	// The correlation id, returned as `x-request-id` and on every log line.
+	requestId: string;
+	log: Logger;
 	now: Date;
 };
 
@@ -41,14 +51,19 @@ export const createContext = (
 	env: CloudflareBindings,
 	request?: Request,
 	execution?: Pick<ExecutionContext, "waitUntil">,
-): AppContext => ({
-	service: "tenant",
-	tenantId: env.TENANT_ID,
-	db: env.DB,
-	membership: env.GLOBAL as unknown as MembershipVerifier,
-	revocations: env.GLOBAL as unknown as RevocationSource,
-	realtime: createRealtime(env),
-	waitUntil: (work) => (execution ? execution.waitUntil(work) : void work),
-	clientIp: request?.headers.get("cf-connecting-ip") ?? null,
-	now: new Date(),
-});
+): AppContext => {
+	const requestId = requestIdOf(request);
+	return {
+		service: "tenant",
+		tenantId: env.TENANT_ID,
+		db: env.DB,
+		membership: env.GLOBAL as unknown as MembershipVerifier,
+		revocations: env.GLOBAL as unknown as RevocationSource,
+		realtime: createRealtime(env),
+		waitUntil: (work) => (execution ? execution.waitUntil(work) : void work),
+		clientIp: request?.headers.get("cf-connecting-ip") ?? null,
+		requestId,
+		log: createLogger({ service: "tenant", tenantId: env.TENANT_ID, requestId }),
+		now: new Date(),
+	};
+};

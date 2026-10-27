@@ -4,9 +4,12 @@ import { createCommand } from "./commands/create.ts";
 import { buildCommand, deployCommand } from "./commands/deploy.ts";
 import { devCommand } from "./commands/dev.ts";
 import { doctorCommand } from "./commands/doctor.ts";
+import { healthCommand } from "./commands/health.ts";
 import { initCommand } from "./commands/init.ts";
+import { logsCommand } from "./commands/logs.ts";
 import { migrateCommand } from "./commands/migrate.ts";
 import { tenantCommand } from "./commands/tenant.ts";
+import { wireCommand } from "./commands/wire.ts";
 import { findCommandGroup } from "./config.ts";
 import { CliError, type CliIo } from "./errors.ts";
 import { mainHelp, version } from "./help.ts";
@@ -29,6 +32,9 @@ const commands: Record<string, (args: string[], io: CliIo) => number | Promise<n
 	user: userCommand,
 	role: roleCommand,
 	invite: inviteCommand,
+	health: healthCommand,
+	wire: wireCommand,
+	logs: logsCommand,
 };
 
 const dispatch = (argv: string[], io: CliIo) => {

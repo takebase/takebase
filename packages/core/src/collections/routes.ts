@@ -1,6 +1,7 @@
 import { type CollectionOperation, type ErrorCode, errorStatus, type FieldErrors } from "@takebase/contracts";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { Logger } from "../diagnostics/log.ts";
 import { evaluateRule } from "../rules/evaluate.ts";
 import type { AuthIdentity } from "../rules/types.ts";
 import { createCollectionsService, recordExists } from "../services/collections-d1-service.ts";
@@ -12,7 +13,13 @@ import type { CollectionRegistry } from "./registry.ts";
 import { type DatabaseLookup, type ValidationMode, validate } from "./validation.ts";
 
 // What a request needs from the Worker's composition root, read per request.
-export type CollectionRequest = { db: AnyD1Database; auth: AuthIdentity | null; now: Date };
+export type CollectionRequest = {
+	db: AnyD1Database;
+	auth: AuthIdentity | null;
+	now: Date;
+	// The request's redacted logger; defaults to an unscoped one.
+	log?: Logger;
+};
 
 export type CollectionRoutesOptions = {
 	registry: CollectionRegistry;
@@ -74,7 +81,7 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 		}
 		const context: HookContext = Object.freeze({ auth: request.auth, collection: definition.name });
 		const service = createCollectionsService(request.db, definition.table, definition.name, request.now);
-		return { definition, db: request.db, service, context };
+		return { definition, db: request.db, service, context, log: request.log };
 	};
 
 	const recordId = (c: Context) => {
@@ -136,7 +143,7 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 	});
 
 	routes.post("/api/collections/:collection/records", async (c) => {
-		const { definition, db, service, context } = await authorize(c, "create");
+		const { definition, db, service, context, log } = await authorize(c, "create");
 		const { hooks } = definition;
 		const lookup = lookupFor(db);
 		let data = await validated(await readBody(c), definition, "create", lookup);
@@ -144,12 +151,12 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 			data = await beforeWrite(definition, "creating", data, lookup, (input) => hooks.creating?.(input, context));
 		const record = await service.create(data);
 		committed?.();
-		if (hooks.created) await runAfterHook(definition.name, "created", () => hooks.created?.(record, context));
+		if (hooks.created) await runAfterHook(definition.name, "created", () => hooks.created?.(record, context), log);
 		return c.json(record, 201);
 	});
 
 	routes.patch("/api/collections/:collection/records/:id", async (c) => {
-		const { definition, db, service, context } = await authorize(c, "update");
+		const { definition, db, service, context, log } = await authorize(c, "update");
 		const { hooks } = definition;
 		const id = recordId(c);
 		const lookup = lookupFor(db, id);
@@ -163,12 +170,12 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 		const record = await service.update(id, data);
 		if (!record) return fail(c, "not_found", "Record not found");
 		committed?.();
-		if (hooks.updated) await runAfterHook(definition.name, "updated", () => hooks.updated?.(record, context));
+		if (hooks.updated) await runAfterHook(definition.name, "updated", () => hooks.updated?.(record, context), log);
 		return c.json(record);
 	});
 
 	routes.delete("/api/collections/:collection/records/:id", async (c) => {
-		const { definition, service, context } = await authorize(c, "delete");
+		const { definition, service, context, log } = await authorize(c, "delete");
 		const { hooks } = definition;
 		const id = recordId(c);
 		if (!hooks.deleting && !hooks.deleted) {
@@ -182,7 +189,7 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 		await hooks.deleting?.(recordContext);
 		if (!(await service.remove(id))) return fail(c, "not_found", "Record not found");
 		committed?.();
-		if (hooks.deleted) await runAfterHook(definition.name, "deleted", () => hooks.deleted?.(recordContext));
+		if (hooks.deleted) await runAfterHook(definition.name, "deleted", () => hooks.deleted?.(recordContext), log);
 		return c.body(null, 204);
 	});
 
@@ -192,6 +199,7 @@ export const createCollectionRoutes = ({ registry, resolve, committed }: Collect
 			return fail(c, error.code, error.message, error.fields);
 		if (error instanceof ListQueryError) return fail(c, "bad_request", error.message);
 		if (isConstraintError(error)) return fail(c, "conflict", "The record conflicts with an existing record");
+		resolve().log?.error("collection.internal_error", { method: c.req.method, error });
 		return fail(c, "internal", "Internal error");
 	});
 

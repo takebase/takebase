@@ -53,7 +53,12 @@ describe("collection hooks", () => {
 		).resolves.toBeUndefined();
 		await expect(runAfterHook("notes", "created", async () => Promise.reject(new Error("x")))).resolves.toBeUndefined();
 		expect(log).toHaveBeenCalledTimes(2);
-		expect(log.mock.calls[0]?.[0]).toMatch(/"notes" hook "created" failed after the write/);
+		expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+			event: "collection.hook_failed",
+			collection: "notes",
+			hook: "created",
+			error: { message: "mail down" },
+		});
 	});
 
 	it("reject operations with a client error code and optional field messages", () => {

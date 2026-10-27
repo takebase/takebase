@@ -67,4 +67,15 @@ Apply these conventions to source and tests in Cloudflare Worker components when
 - Every execution outside a fetch request, including cron handlers, queue consumers, and Workflow steps, opens its own `runInRequest` scope. Each RPC entrypoint method also opens its own scope.
 - Preserve established platform structure and read current platform documentation and configuration before implementing compatibility changes. Apply these rules within the human-approved work; report conflicts with the current architecture instead of silently performing a broad migration.
 
+## Manual checks for the human: one smoke script, not copy-paste
+
+After each section, give the human one command to run, never a list of commands to copy and paste.
+
+- Put the section's manual checks in a bash script under `tests/smoke/` that sources `tests/smoke/lib.sh` (`run`, `check`, `refute`, `start_stack`, `stop_stack`, `second_window`). Expose it as `pnpm smoke:<name>`; the first is `pnpm smoke:diagnostics`.
+- Give the human package scripts (`pnpm staging:deploy`, `pnpm staging:health`, …), never raw `node packages/cli/src/bin.ts …` lines. If a needed command has no script, add one to the root `package.json` with its flags fixed (pnpm 12 drops flags passed after the script name).
+- Acceptance steps only: static checks, the stack's health and the acceptance journey. Per-section wiring checks are one-off and are not kept in the script; security details belong in the automated tests.
+- Keep it simple: plain steps, each printing PASS or FAIL, then a total. No frameworks, options or extra machinery beyond `--quick`. Extend an existing script when the feature fits; add a new one only for a new feature.
+- The script starts and stops the local stack itself (`pnpm dev:stack:stop`). When a step truly needs a second terminal, the script says so with `second_window` and waits for Enter.
+- Run the script yourself before handing it over, and record it with `wavelens record`.
+
 Planning, issue status, and generated prompts do not authorize implementation. Preserve unrelated work and component instructions. Root AGENTS.md is temporary Multica context; never create, edit, delete, restore, stage, or commit it as durable guidance. Do not invoke Jumbo lifecycle/delegation commands or dispatch agents, wakeups, schedules, or automatic follow-up. Commit, push, pull request, merge, and deploy require the corresponding human request. Routine issue statuses and Done follow the selected-issue lifecycle.

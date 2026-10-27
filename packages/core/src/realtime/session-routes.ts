@@ -1,6 +1,7 @@
 import { type ErrorCode, errorStatus, type RealtimeSession } from "@takebase/contracts";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { createLogger, type Logger } from "../diagnostics/log.ts";
 import type { AuthIdentity } from "../rules/types.ts";
 import type { RealtimeAdapter } from "./adapter.ts";
 import { type RevocationSource, reconcileRevocation } from "./revocations.ts";
@@ -18,7 +19,11 @@ export type RealtimeRequest = {
 	// This tenant's id and the global Worker's revocation RPC, for reconcile.
 	tenantId?: string;
 	revocations?: RevocationSource | null;
+	// The request's redacted logger; defaults to an unscoped one.
+	log?: Logger;
 };
+
+const fallbackLog = createLogger({ service: "takebase" });
 
 export type RealtimeRoutesOptions = { resolve: () => RealtimeRequest };
 
@@ -33,7 +38,7 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 	const routes = new Hono();
 
 	routes.post("/api/realtime/session", async (c) => {
-		const { auth, accessRevision, adapter, granted, revocations, tenantId } = resolve();
+		const { auth, accessRevision, adapter, granted, revocations, tenantId, log = fallbackLog } = resolve();
 		if (!auth) return fail(c, "unauthenticated", "Authentication required");
 		if (!adapter || accessRevision === null) return fail(c, "unavailable", "Realtime is not available");
 		// Deliver whatever the tenant still owes before granting, so a pending
@@ -43,13 +48,13 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 			try {
 				await reconcileRevocation(revocations, adapter, tenantId);
 			} catch (error) {
-				console.error("Realtime revocation failed; it stays pending", error);
+				log.error("realtime.revocation_failed", { tenantId, pending: true, error });
 			}
 		}
 		try {
 			await adapter.grant(auth.id, accessRevision);
 		} catch (error) {
-			console.error("Realtime grant failed", error);
+			log.error("realtime.grant_failed", { error });
 			return fail(c, "unavailable", "Realtime is not available");
 		}
 		granted?.();
@@ -63,14 +68,14 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 	// Worker asks the global Worker what is owed and only ever revokes, so any
 	// caller may trigger it, and repeating it changes nothing.
 	routes.post("/api/realtime/reconcile", async (c) => {
-		const { adapter, revocations, tenantId } = resolve();
+		const { adapter, revocations, tenantId, log = fallbackLog } = resolve();
 		if (!adapter || !revocations || tenantId === undefined) {
 			return fail(c, "unavailable", "Realtime is not available");
 		}
 		try {
 			return c.json(await reconcileRevocation(revocations, adapter, tenantId));
 		} catch (error) {
-			console.error("Realtime revocation failed", error);
+			log.error("realtime.revocation_failed", { tenantId, pending: true, error });
 			return fail(c, "unavailable", "Realtime revocation failed; it stays pending");
 		}
 	});

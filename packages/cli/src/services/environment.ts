@@ -80,12 +80,25 @@ export const queryD1 = (
 	environment: EnvironmentConfig,
 	sql: string,
 	run: ToolRunner = runAnyTool,
+	// Local only: the D1 state directory (`takebase dev` keeps one per tenant).
+	persistTo?: string,
 ): Record<string, unknown>[] => {
 	const location = environment.remote ? "--remote" : "--local";
+	const persist = !environment.remote && persistTo !== undefined ? ["--persist-to", persistTo] : [];
 	const result = run(
 		dir,
 		"wrangler",
-		["d1", "execute", "DB", location, ...(env === undefined ? [] : ["--env", env]), "--json", "--command", sql],
+		[
+			"d1",
+			"execute",
+			"DB",
+			location,
+			...(env === undefined ? [] : ["--env", env]),
+			...persist,
+			"--json",
+			"--command",
+			sql,
+		],
 		cloudflareEnv(environment),
 	);
 	const start = result.stdout.indexOf("[");

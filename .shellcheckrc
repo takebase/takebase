@@ -1,0 +1,4 @@
+# Shell scripts source helpers next to them (tests/smoke/lib.sh): follow them
+# without -x, resolving `source=` paths relative to each script.
+external-sources=true
+source-path=SCRIPTDIR

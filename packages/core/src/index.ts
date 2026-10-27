@@ -45,10 +45,16 @@ export type {
 	ValidationRules,
 } from "./collections/validation.ts";
 export { compileRules, defaultMessages, formatMessage, validate } from "./collections/validation.ts";
+export type { LogFields, Logger, LogLevel, LogScope } from "./diagnostics/log.ts";
+export { createLogger, REDACTED, redact, redactText, requestIdOf } from "./diagnostics/log.ts";
+export type { ReadinessCheck } from "./diagnostics/readiness.ts";
+export { checkReadiness } from "./diagnostics/readiness.ts";
+export type { DiagnosticsRequest, DiagnosticsRoutesOptions } from "./diagnostics/routes.ts";
+export { createDiagnosticsRoutes } from "./diagnostics/routes.ts";
 export { browserCors } from "./http/cors.ts";
 export type { RealtimeAdapter } from "./realtime/adapter.ts";
 export type { DispatchOptions, DispatchResult } from "./realtime/dispatcher.ts";
-export { dispatchOutbox } from "./realtime/dispatcher.ts";
+export { deliveredRetentionMs, deliverOutbox, dispatchOutbox } from "./realtime/dispatcher.ts";
 export type { OutboxRow } from "./realtime/events.ts";
 export { toRecordChangeEvent } from "./realtime/events.ts";
 export { outbox, outboxOperations, outboxStatuses } from "./realtime/outbox.ts";
