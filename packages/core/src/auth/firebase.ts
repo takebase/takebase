@@ -94,7 +94,7 @@ const checkClaims = (claims: Record<string, unknown>, projectId: string, now: Da
 		throw new InvalidTokenError("authenticated in the future");
 	}
 	if (typeof sub !== "string" || sub.length === 0 || sub.length > 128) throw new InvalidTokenError("invalid subject");
-	return sub;
+	return { subject: sub, authTime: auth_time };
 };
 
 export type FirebaseProviderOptions = FirebaseSettings & { keys?: SigningKeys };
@@ -128,7 +128,7 @@ export const firebaseProvider = ({ projectId, emulator, keys = googleSigningKeys
 			} else {
 				await verifySignature(decodedHeader, `${header}.${payload}`, signature, now);
 			}
-			return { provider: "firebase", subject: checkClaims(decodeJson(payload), projectId, now) };
+			return { provider: "firebase", ...checkClaims(decodeJson(payload), projectId, now) };
 		},
 	};
 	return provider;

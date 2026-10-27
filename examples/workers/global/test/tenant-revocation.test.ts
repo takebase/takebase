@@ -13,22 +13,33 @@ const revocations = (tenantId: string) =>
 		.then(({ results }) => results);
 const source = exports.MembershipEntrypoint;
 
-// A realtime adapter whose revokeAll can be made to fail; everything else is unused.
+// A realtime adapter whose revocations can be made to fail; publish and grant are unused.
 const adapter = (fail: boolean) => {
 	const revoked: number[] = [];
+	const members: [string, number][] = [];
 	const unused = async () => {};
 	const realtime: RealtimeAdapter = {
 		publish: unused,
 		grant: unused,
-		revoke: unused,
+		revoke: async (uid, rev) => {
+			if (fail) throw new Error("realtime unavailable");
+			members.push([uid, rev]);
+		},
 		revokeAll: async (rev) => {
 			if (fail) throw new Error("realtime unavailable");
 			revoked.push(rev);
 		},
 		connection: {},
 	};
-	return { realtime, revoked };
+	return { realtime, revoked, members };
 };
+const memberRevocations = (tenantId: string) =>
+	env.DB.prepare(
+		"select subject, rev, confirmed is not null as confirmed from member_revocations where tenant_id = ? order by subject, rev",
+	)
+		.bind(tenantId)
+		.all<{ subject: string; rev: number; confirmed: number }>()
+		.then(({ results }) => results);
 
 describe("tenant-wide realtime revocation (R-5-1-01)", () => {
 	it("commits with the disable itself, and only while the tenant is disabled", async () => {
@@ -59,11 +70,43 @@ describe("tenant-wide realtime revocation (R-5-1-01)", () => {
 		expect(await revocations("umbrella")).toEqual([{ rev: 1, confirmed: 0 }]);
 
 		const working = adapter(false);
-		expect(await reconcileRevocation(source, working.realtime, "umbrella")).toEqual({ revoked: 1 });
+		expect(await reconcileRevocation(source, working.realtime, "umbrella")).toEqual({ revoked: 1, members: 0 });
 		expect(working.revoked).toEqual([1]);
 		expect(await revocations("umbrella")).toEqual([{ rev: 1, confirmed: 1 }]);
-		expect(await reconcileRevocation(source, working.realtime, "umbrella")).toEqual({ revoked: null });
+		expect(await reconcileRevocation(source, working.realtime, "umbrella")).toEqual({ revoked: null, members: 0 });
 		// One tenant's revocation never answers for another.
 		expect(await source.pendingRevocation("globex")).toBeNull();
+	});
+});
+
+describe("one user's realtime revocation (R-5-2-01)", () => {
+	it("is owed when a user loses their last role or is disabled, and confirmed only after delivery", async () => {
+		await addTenant("hooli");
+		await addTenant("initech");
+		await addMember("hooli", "alice", "agent");
+		await addMember("initech", "alice", "agent");
+		await addMember("hooli", "bob", "agent");
+
+		await run("delete from memberships where subject = 'bob'");
+		await run(
+			"insert into identities (provider, subject, status, created, updated) values ('firebase', 'alice', 'disabled', 'now', 'now')",
+		);
+		const hooli = await source.pendingMemberRevocations("hooli");
+		expect(hooli.map(({ subject }) => subject).sort()).toEqual(["alice", "bob"]);
+		expect(await source.pendingMemberRevocations("initech")).toEqual([
+			{ provider: "firebase", subject: "alice", rev: expect.any(Number) },
+		]);
+
+		const broken = adapter(true);
+		await expect(reconcileRevocation(source, broken.realtime, "hooli")).rejects.toThrow("realtime unavailable");
+		expect((await memberRevocations("hooli")).every(({ confirmed }) => confirmed === 0)).toBe(true);
+
+		const working = adapter(false);
+		expect(await reconcileRevocation(source, working.realtime, "hooli")).toEqual({ revoked: null, members: 2 });
+		expect(working.members.sort()).toEqual(hooli.map(({ subject, rev }) => [subject, rev]).sort());
+		expect((await memberRevocations("hooli")).every(({ confirmed }) => confirmed === 1)).toBe(true);
+		expect(await reconcileRevocation(source, working.realtime, "hooli")).toEqual({ revoked: null, members: 0 });
+		// One tenant's delivery never confirms another's.
+		expect(await source.pendingMemberRevocations("initech")).toHaveLength(1);
 	});
 });

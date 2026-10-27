@@ -46,6 +46,23 @@ describe("SDK authentication and tenant routing", () => {
 		expect(sent).toHaveLength(4);
 	});
 
+	it("redeems an invitation at the global Worker only, as the signed-in user", async () => {
+		const redemption = { tenant: { id: "t1", name: "T1", url: "https://t1.example" }, role: "agent" };
+		const { sent, fetch } = tracking(() => Response.json(redemption));
+		const client = createClient({ globalUrl, auth: fakeAuth().auth, fetch });
+		expect(await client.invites.redeem("invite-token")).toEqual(redemption);
+		expect(sent).toEqual([{ url: `${globalUrl}/api/invites/redeem`, authorization: "Bearer user-1-token-0" }]);
+
+		const refused = tracking(() =>
+			Response.json(
+				{ error: { code: "not_found", message: "The invitation is invalid, used or expired" } },
+				{ status: 404 },
+			),
+		);
+		const other = createClient({ globalUrl, auth: fakeAuth().auth, fetch: refused.fetch });
+		expect((await failure(other.invites.redeem("used-token"))).code).toBe("not_found");
+	});
+
 	it("routes only to tenants the global Worker lists, over https, and sends tokens nowhere else", async () => {
 		const { sent, fetch } = tracking();
 		const tenants = [membership("t1", "https://t1.example/"), membership("bad", "http://attacker.example")];

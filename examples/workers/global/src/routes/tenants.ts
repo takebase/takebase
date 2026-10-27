@@ -1,5 +1,5 @@
 import type { TenantListResponse } from "@takebase/contracts";
-import { authenticate, createMembershipsService, InvalidTokenError } from "@takebase/core";
+import { authenticate, createMembershipsService, ensureAccepted, InvalidTokenError } from "@takebase/core";
 import { Hono } from "hono";
 import { useContext } from "../request-store.ts";
 
@@ -11,6 +11,7 @@ export const tenantRoutes = new Hono<{ Bindings: CloudflareBindings }>().get("/"
 	let verified: Awaited<ReturnType<typeof authenticate>>;
 	try {
 		verified = await authenticate(identity, c.req.header("authorization"), now);
+		if (verified !== null) await ensureAccepted(db, verified);
 	} catch (error) {
 		if (error instanceof InvalidTokenError) return c.json(unauthenticated, 401);
 		throw error;

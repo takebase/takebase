@@ -36,10 +36,14 @@ export const seedStatements = (uids: Record<UserName, string>, tenantUrl: (tenan
 		(tenant) =>
 			`insert into tenants (id, name, url, status, created, updated) values (${text(tenant.id)}, ${text(tenant.name)}, ${text(tenantUrl(tenant))}, 'active', ${now}, ${now}) on conflict(id) do update set name = excluded.name, url = excluded.url, status = 'active', updated = excluded.updated;`,
 	);
-	statements.push(`delete from memberships where tenant_id in (${tenants.map(({ id }) => text(id)).join(", ")});`);
+	statements.push(
+		`delete from memberships where tenant_id in (${tenants.map(({ id }) => text(id)).join(", ")}) and role != 'admin';`,
+	);
 	for (const [name, byTenant] of Object.entries(roles) as [UserName, Record<string, string>][]) {
 		for (const [tenant, role] of Object.entries(byTenant)) {
+			// Global D1 refuses a membership with an undeclared role.
 			statements.push(
+				`insert or ignore into tenant_roles (tenant_id, name, created) values (${text(tenant)}, ${text(role)}, ${now});`,
 				`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(crypto.randomUUID())}, ${text(tenant)}, 'firebase', ${text(uids[name])}, ${text(role)}, ${now}, ${now});`,
 			);
 		}
@@ -66,7 +70,7 @@ export const removeStagingMembership = (uid: string, tenant: Tenant["id"]) =>
 export const addStagingMembership = (uid: string, tenant: Tenant["id"], role: string) => {
 	const now = text(new Date().toISOString());
 	stagingGlobal(
-		`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(crypto.randomUUID())}, ${text(tenant)}, 'firebase', ${text(uid)}, ${text(role)}, ${now}, ${now}) on conflict do nothing;`,
+		`insert or ignore into tenant_roles (tenant_id, name, created) values (${text(tenant)}, ${text(role)}, ${now}); insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(crypto.randomUUID())}, ${text(tenant)}, 'firebase', ${text(uid)}, ${text(role)}, ${now}, ${now}) on conflict do nothing;`,
 	);
 };
 

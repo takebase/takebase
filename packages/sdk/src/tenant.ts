@@ -1,4 +1,9 @@
-import { isTenantListResponse, type TenantMembership } from "@takebase/contracts";
+import {
+	type InviteRedemption,
+	isInviteRedemption,
+	isTenantListResponse,
+	type TenantMembership,
+} from "@takebase/contracts";
 import { readResponse, TakebaseError } from "./errors.ts";
 import type { Http, RequestOptions } from "./http.ts";
 
@@ -11,4 +16,19 @@ export const fetchTenants = async (global: Http, { signal }: RequestOptions = {}
 		throw new TakebaseError(response.status, "invalid_response", "Response is not a tenant list");
 	}
 	return body.tenants;
+};
+
+// Redeems a tenant invitation for the signed-in user. The new role counts from
+// the next request; select the tenant with useTenant() to start using it.
+export const redeemInvite = async (
+	global: Http,
+	token: string,
+	{ signal }: RequestOptions = {},
+): Promise<InviteRedemption> => {
+	const response = await global.send("/api/invites/redeem", { method: "POST", body: { token }, signal });
+	const body = await readResponse<unknown>(response);
+	if (!isInviteRedemption(body)) {
+		throw new TakebaseError(response.status, "invalid_response", "Response is not an invitation redemption");
+	}
+	return body;
 };

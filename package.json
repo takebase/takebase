@@ -12,6 +12,7 @@
 		"test:realtime": "firebase emulators:exec --only auth,database --project demo-takebase 'pnpm --filter @takebase/adapter-firebase exec vitest run test/emulator.test.ts test/client-emulator.test.ts && pnpm --filter @takebase/example-tenant exec vitest run test/realtime'",
 		"dev:stack": "takebase dev --fresh --seed 'node tests/fixtures/seed.ts'",
 		"test:e2e": "playwright test",
+		"journey:admin": "node tests/fixtures/admin-journey.ts",
 		"staging:firebase:setup": "node ops/staging-firebase.ts setup",
 		"staging:firebase:rules": "firebase deploy --only database --project takebase-eb6e3 --config ops/.staging/firebase.json",
 		"staging:firebase:check": "node ops/staging-firebase.ts check",
@@ -21,6 +22,7 @@
 		"staging:check": "takebase doctor --env staging && node ops/staging-cloudflare.ts check",
 		"staging:seed": "node ops/staging-cloudflare.ts seed",
 		"staging:journey": "node ops/staging-cloudflare.ts journey",
+		"staging:journey:admin": "node tests/fixtures/admin-journey.ts --env staging",
 		"staging:e2e": "playwright test --config playwright.staging.config.ts"
 	},
 	"packageManager": "pnpm@12.15.0",

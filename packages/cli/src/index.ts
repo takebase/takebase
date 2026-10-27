@@ -1,3 +1,4 @@
+import { inviteCommand, roleCommand, userCommand } from "./commands/administration.ts";
 import { collectionCommand } from "./commands/collection.ts";
 import { createCommand } from "./commands/create.ts";
 import { buildCommand, deployCommand } from "./commands/deploy.ts";
@@ -25,6 +26,9 @@ const commands: Record<string, (args: string[], io: CliIo) => number | Promise<n
 	dev: devCommand,
 	build: buildCommand,
 	deploy: deployCommand,
+	user: userCommand,
+	role: roleCommand,
+	invite: inviteCommand,
 };
 
 const dispatch = (argv: string[], io: CliIo) => {

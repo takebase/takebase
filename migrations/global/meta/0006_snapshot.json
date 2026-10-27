@@ -1,0 +1,569 @@
+{
+	"id": "2e89b089-3013-4595-a4fa-981d092def7c",
+	"prevId": "50ce2b87-a7f6-4639-b828-f3c278f7b561",
+	"version": "6",
+	"dialect": "sqlite",
+	"tables": {
+		"audit_events": {
+			"name": "audit_events",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"actor": {
+					"name": "actor",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"action": {
+					"name": "action",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"target": {
+					"name": "target",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"detail": {
+					"name": "detail",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"audit_events_tenant": {
+					"name": "audit_events_tenant",
+					"columns": ["tenant_id", "created"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"identities": {
+			"name": "identities",
+			"columns": {
+				"provider": {
+					"name": "provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'active'"
+				},
+				"sessions_valid_after": {
+					"name": "sessions_valid_after",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"updated": {
+					"name": "updated",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {
+				"identities_provider_subject_pk": {
+					"columns": ["provider", "subject"],
+					"name": "identities_provider_subject_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"identities_status": {
+					"name": "identities_status",
+					"value": "\"identities\".\"status\" in ('active', 'disabled', 'deleted')"
+				}
+			}
+		},
+		"invitations": {
+			"name": "invitations",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"role": {
+					"name": "role",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"token_hash": {
+					"name": "token_hash",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"expires": {
+					"name": "expires",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"redeemed_by": {
+					"name": "redeemed_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"redeemed_at": {
+					"name": "redeemed_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"revoked_at": {
+					"name": "revoked_at",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"invitations_token_hash_unique": {
+					"name": "invitations_token_hash_unique",
+					"columns": ["token_hash"],
+					"isUnique": true
+				},
+				"invitations_tenant": {
+					"name": "invitations_tenant",
+					"columns": ["tenant_id"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"invitations_tenant_id_tenants_id_fk": {
+					"name": "invitations_tenant_id_tenants_id_fk",
+					"tableFrom": "invitations",
+					"columnsFrom": ["tenant_id"],
+					"tableTo": "tenants",
+					"columnsTo": ["id"],
+					"onUpdate": "no action",
+					"onDelete": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"member_revocations": {
+			"name": "member_revocations",
+			"columns": {
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"provider": {
+					"name": "provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"rev": {
+					"name": "rev",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"confirmed": {
+					"name": "confirmed",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"member_revocations_pending": {
+					"name": "member_revocations_pending",
+					"columns": ["tenant_id", "confirmed"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"member_revocations_tenant_id_tenants_id_fk": {
+					"name": "member_revocations_tenant_id_tenants_id_fk",
+					"tableFrom": "member_revocations",
+					"columnsFrom": ["tenant_id"],
+					"tableTo": "tenants",
+					"columnsTo": ["id"],
+					"onUpdate": "no action",
+					"onDelete": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {
+				"member_revocations_tenant_id_provider_subject_rev_pk": {
+					"columns": ["tenant_id", "provider", "subject", "rev"],
+					"name": "member_revocations_tenant_id_provider_subject_rev_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"memberships": {
+			"name": "memberships",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"provider": {
+					"name": "provider",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"subject": {
+					"name": "subject",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"role": {
+					"name": "role",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"updated": {
+					"name": "updated",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"memberships_identity": {
+					"name": "memberships_identity",
+					"columns": ["provider", "subject"],
+					"isUnique": false
+				},
+				"memberships_tenant_identity_role": {
+					"name": "memberships_tenant_identity_role",
+					"columns": ["tenant_id", "provider", "subject", "role"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"memberships_tenant_id_tenants_id_fk": {
+					"name": "memberships_tenant_id_tenants_id_fk",
+					"tableFrom": "memberships",
+					"columnsFrom": ["tenant_id"],
+					"tableTo": "tenants",
+					"columnsTo": ["id"],
+					"onUpdate": "no action",
+					"onDelete": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"tenant_revocations": {
+			"name": "tenant_revocations",
+			"columns": {
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"rev": {
+					"name": "rev",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"confirmed": {
+					"name": "confirmed",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"tenant_revocations_tenant_id_tenants_id_fk": {
+					"name": "tenant_revocations_tenant_id_tenants_id_fk",
+					"tableFrom": "tenant_revocations",
+					"columnsFrom": ["tenant_id"],
+					"tableTo": "tenants",
+					"columnsTo": ["id"],
+					"onUpdate": "no action",
+					"onDelete": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {
+				"tenant_revocations_tenant_id_rev_pk": {
+					"columns": ["tenant_id", "rev"],
+					"name": "tenant_revocations_tenant_id_rev_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"tenant_roles": {
+			"name": "tenant_roles",
+			"columns": {
+				"tenant_id": {
+					"name": "tenant_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"tenant_roles_tenant_id_tenants_id_fk": {
+					"name": "tenant_roles_tenant_id_tenants_id_fk",
+					"tableFrom": "tenant_roles",
+					"columnsFrom": ["tenant_id"],
+					"tableTo": "tenants",
+					"columnsTo": ["id"],
+					"onUpdate": "no action",
+					"onDelete": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {
+				"tenant_roles_tenant_id_name_pk": {
+					"columns": ["tenant_id", "name"],
+					"name": "tenant_roles_tenant_id_name_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"tenant_roles_name": {
+					"name": "tenant_roles_name",
+					"value": "length(\"tenant_roles\".\"name\") between 1 and 64"
+				}
+			}
+		},
+		"tenants": {
+			"name": "tenants",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"url": {
+					"name": "url",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"access_revision": {
+					"name": "access_revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"created": {
+					"name": "created",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"updated": {
+					"name": "updated",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {
+				"tenants_status": {
+					"name": "tenants_status",
+					"value": "\"tenants\".\"status\" in ('active', 'disabled')"
+				}
+			}
+		}
+	},
+	"views": {},
+	"enums": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	},
+	"internal": {
+		"indexes": {}
+	}
+}

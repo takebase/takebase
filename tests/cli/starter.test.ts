@@ -77,7 +77,10 @@ describe("takebase help", () => {
 			"build",
 			"deploy",
 			"doctor",
+			"user",
 			"tenant",
+			"role",
+			"invite",
 			"collection",
 			"migrate",
 		]);

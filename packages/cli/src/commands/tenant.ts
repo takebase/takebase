@@ -14,10 +14,11 @@ import {
 import { queryD1 } from "../services/environment.ts";
 import { provisionTenant, type StepResult } from "../services/provisioning.ts";
 import { remoteTenantProvider } from "../services/remote-tenant-provider.ts";
-import { deleteTenant, disableTenant, type LifecycleDeps } from "../services/tenant-lifecycle.ts";
+import { deleteTenant, disableTenant, lifecycleDeps } from "../services/tenant-lifecycle.ts";
 import { localTenantProvider, tenantPlan } from "../services/tenant-providers.ts";
+import { tenantUserCommand } from "./administration.ts";
 
-const usage = "takebase tenant <create|provision|list|disable|delete> [<id>] [options]";
+const usage = "takebase tenant <create|provision|list|disable|delete|user> [<id>] [options]";
 
 const help = `Create, provision, list, disable and delete the tenants of one environment.
 
@@ -29,6 +30,9 @@ Commands:
   list                                        Declared tenants with their registration and pending revocation
   disable <id>                                Deny all access now, then revoke all realtime access (rerun to retry)
   delete <id> --confirm <id>                  Remove a disabled tenant's registration; resources are kept
+  user add <id> <uid> --role <role>           Give a user a declared role in the tenant
+  user remove <id> <uid> [--role <role>]      Take one role, or the whole membership, away (revokes realtime)
+  user list <id>                              The tenant's members, their roles and status
 
 Options:
   --env <name>   Environment from takebase.jsonc (default: local)
@@ -36,6 +40,7 @@ Options:
   --port <port>  Local port of the tenant Worker under \`takebase dev\` (create, local only)
   --plan         Detect only: show what provision would do and change nothing
   --confirm <id> Repeat the tenant id to confirm delete
+  --role <role>  Role for tenant user add/remove
   -h, --help     Show this help
 
 Provisioning detects each resource before creating it, so a rerun resumes after
@@ -50,6 +55,7 @@ const options = {
 	port: { type: "string" },
 	plan: { type: "boolean" },
 	confirm: { type: "string" },
+	role: { type: "string" },
 	help: { type: "boolean", short: "h" },
 } as const;
 
@@ -166,21 +172,6 @@ const list = (io: CliIo, project: ProjectConfig, environment: EnvironmentConfig)
 	return 0;
 };
 
-const lifecycleDeps = (project: ProjectConfig, environment: EnvironmentConfig): LifecycleDeps => ({
-	query: (sql) => queryD1(project.workers.global, environment.globalEnv, environment, sql),
-	reconcile: async (url) => {
-		try {
-			const response = await fetch(`${url}/api/realtime/reconcile`, { method: "POST" });
-			await response.body?.cancel();
-			return response.status;
-		} catch {
-			return 0;
-		}
-	},
-	wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-	now: () => new Date(),
-});
-
 const disable = async (io: CliIo, project: ProjectConfig, environment: EnvironmentConfig, id: string) => {
 	const result = await disableTenant(lifecycleDeps(project, environment), id);
 	io.stdout(
@@ -251,6 +242,8 @@ export const tenantCommand = async (args: string[], io: CliIo) => {
 	}
 	const [subcommand, id, ...extra] = positionals;
 	if (subcommand === undefined) throw usageError("Missing tenant command");
+	if (subcommand === "user") return tenantUserCommand(io, values.env, positionals.slice(1), values.role);
+	if (values.role !== undefined) throw usageError("--role is for tenant user");
 	if (!["create", "provision", "list", "disable", "delete"].includes(subcommand)) {
 		throw usageError(`Unknown tenant command "${subcommand}"`);
 	}

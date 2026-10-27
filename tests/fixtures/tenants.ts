@@ -69,11 +69,17 @@ const globalSeed = (uids: Record<keyof typeof users, string>) => {
 			`insert into tenants (id, name, url, status, created, updated) values (${text(id)}, ${text(name)}, ${text(tenantUrl(port))}, 'active', ${now}, ${now}) on conflict(id) do update set name = excluded.name, url = excluded.url, status = 'active', updated = excluded.updated;`,
 	);
 	// Uids change with every emulator start, so memberships are rewritten. The
-	// access-revision triggers move each tenant's revision forward.
-	statements.push(`delete from memberships where tenant_id in (${tenants.map(({ id }) => text(id)).join(", ")});`);
+	// access-revision triggers move each tenant's revision forward. Admins are
+	// left alone: global D1 never lets a tenant lose its last admin, and the
+	// fixture users hold no admin role.
+	statements.push(
+		`delete from memberships where tenant_id in (${tenants.map(({ id }) => text(id)).join(", ")}) and role != 'admin';`,
+	);
 	for (const [name, { roles }] of Object.entries(users) as [keyof typeof users, (typeof users)[keyof typeof users]][]) {
 		for (const [tenant, role] of Object.entries(roles)) {
+			// Global D1 refuses a membership with an undeclared role.
 			statements.push(
+				`insert or ignore into tenant_roles (tenant_id, name, created) values (${text(tenant)}, ${text(role)}, ${now});`,
 				`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(crypto.randomUUID())}, ${text(tenant)}, 'firebase', ${text(uids[name])}, ${text(role)}, ${now}, ${now});`,
 			);
 		}

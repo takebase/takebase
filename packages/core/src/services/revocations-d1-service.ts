@@ -1,8 +1,9 @@
 import { and, eq, isNull, lte, max } from "drizzle-orm";
 import { type AnyD1Database, createDatabase } from "../storage/d1.ts";
-import { tenantRevocations, tenants } from "../tenancy/schema.ts";
+import { memberRevocations, tenantRevocations, tenants } from "../tenancy/schema.ts";
 
-// All SQL for tenant-wide realtime revocations lives here (global D1).
+// All SQL for realtime revocations lives here (global D1): tenant-wide ones
+// (tenant disabled) and one user's (removed, disabled, sessions revoked).
 
 export const createRevocationsService = (d1: AnyD1Database) => {
 	const db = createDatabase(d1);
@@ -40,7 +41,37 @@ export const createRevocationsService = (d1: AnyD1Database) => {
 			);
 	};
 
-	return { pending, confirm };
+	// One entry per user still owed a revocation in this tenant, at their newest
+	// pending revision (it covers the older ones). Bounded per call; reconcile
+	// again for the rest.
+	const pendingMembers = async (tenantId: string, limit = 100) =>
+		db
+			.select({
+				provider: memberRevocations.provider,
+				subject: memberRevocations.subject,
+				rev: max(memberRevocations.rev).mapWith(Number),
+			})
+			.from(memberRevocations)
+			.where(and(eq(memberRevocations.tenant_id, tenantId), isNull(memberRevocations.confirmed)))
+			.groupBy(memberRevocations.provider, memberRevocations.subject)
+			.limit(limit);
+
+	const confirmMember = async (tenantId: string, provider: string, subject: string, rev: number, now: Date) => {
+		await db
+			.update(memberRevocations)
+			.set({ confirmed: now.toISOString() })
+			.where(
+				and(
+					eq(memberRevocations.tenant_id, tenantId),
+					eq(memberRevocations.provider, provider),
+					eq(memberRevocations.subject, subject),
+					lte(memberRevocations.rev, rev),
+					isNull(memberRevocations.confirmed),
+				),
+			);
+	};
+
+	return { pending, confirm, pendingMembers, confirmMember };
 };
 
 export type RevocationsService = ReturnType<typeof createRevocationsService>;
