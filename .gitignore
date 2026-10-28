@@ -36,3 +36,5 @@ node_modules/
 /public/
 # Key rotation progress (`takebase secrets rotate`): versions, counts and times only
 /ops/.rotation/
+# The simulated local key escrow (`escrowDir` in takebase.jsonc)
+/ops/.escrow/

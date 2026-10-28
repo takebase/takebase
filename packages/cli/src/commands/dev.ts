@@ -14,6 +14,7 @@ import {
 } from "../project-config.ts";
 import { workerEnvironment } from "../services/environment.ts";
 import { localKeyFile } from "../services/key-installation.ts";
+import { localKeys } from "../services/key-lifecycle.ts";
 import { applyMigrations } from "../services/migration-service.ts";
 import { provisionTenant } from "../services/provisioning.ts";
 import { localTenantProvider, tenantPlan } from "../services/tenant-providers.ts";
@@ -197,10 +198,13 @@ const stack = async (
 		);
 		await ready(`http://localhost:${environment.globalPort}/health`);
 		environment.tenants.forEach((tenant, index) => {
-			// Each tenant Worker gets only its own data key, from a mode-600 file
-			// that is removed when the stack stops: never a --var on a command line.
+			// Each tenant Worker gets only its own data keys (two only while a
+			// rotation is unfinished), from a mode-600 file that is removed when the
+			// stack stops: never a --var on a command line.
 			const version = Number(workerEnvironment(project.workers.tenant, tenant.env)?.vars.DATA_KEY_VERSION ?? "");
-			const keyFile = Number.isSafeInteger(version) ? localKeyFile(environment, tenant.id, version, keysDir) : null;
+			const keys = Number.isSafeInteger(version) && version >= 1 ? localKeys(project, environment, tenant.id) : null;
+			const keyFile =
+				keys === null ? null : localKeyFile(environment, tenant.id, keys.versions, keysDir, keys.override);
 			run(`tenant ${tenant.id}`, project.workers.tenant, "wrangler", [
 				...wranglerDev(tenant.port ?? 0, 9231 + index, tenant.env, {
 					CORS_ORIGINS: browserOrigins,

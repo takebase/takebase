@@ -2,11 +2,9 @@ import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CliError } from "../../packages/cli/src/errors.ts";
 import {
 	type EnvelopeStore,
 	fullyRotated,
-	type KeyRing,
 	progressFile,
 	readProgress,
 	rewriteSecrets,
@@ -19,50 +17,13 @@ import {
 	parseEnvelope,
 	sealEnvelope,
 } from "../../packages/cli/src/services/secret-envelopes.ts";
-import { createSecretsService, dataKeysFrom, type SecretsKv } from "../../packages/core/src/index.ts";
+import type { SecretsKv } from "../../packages/core/src/index.ts";
+import { memory, randomKey, randomValue, ring, scope, worker } from "../fixtures/secret-store.ts";
 
 // Data key rotation (SEGU-224) against the tenant Worker's own secrets
 // service: what core writes, the CLI re-encrypts, and core then reads with
 // the new key alone. Keys and values are random per run: no credential-shaped
 // literal is committed, and every assertion compares plaintext in memory.
-
-const randomKey = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
-const randomValue = () => `value-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
-const scope = { tenantId: "tenant-a", environment: "local" };
-
-// One in-memory KV namespace, seen both as the Worker's binding and as the CLI's store.
-const memory = () => {
-	const map = new Map<string, { value: string; metadata?: unknown }>();
-	const kv: SecretsKv = {
-		get: async (key) => map.get(key)?.value ?? null,
-		put: async (key, value, options) => {
-			map.set(key, { value, metadata: options?.metadata });
-		},
-		list: async ({ prefix }) => ({
-			keys: [...map].filter(([name]) => name.startsWith(prefix)).map(([name, { metadata }]) => ({ name, metadata })),
-			list_complete: true,
-		}),
-	};
-	const store: EnvelopeStore = {
-		names: async () => [...map.keys()].filter((name) => name.startsWith("secret/")),
-		get: kv.get,
-		put: (key, value, metadata) => kv.put(key, value, { metadata }),
-	};
-	return { map, kv, store };
-};
-
-const worker = (kv: SecretsKv, env: Record<string, string>) =>
-	createSecretsService({ kv, keys: dataKeysFrom(env), ...scope, now: () => new Date(0) });
-
-const ring = (keys: Record<number, string>): KeyRing => {
-	const imported = new Map<number, ReturnType<typeof importDataKey>>();
-	return (version) => {
-		const key = keys[version];
-		if (key === undefined) return Promise.reject(new CliError(`no key v${version}`));
-		if (!imported.has(version)) imported.set(version, importDataKey(key));
-		return imported.get(version) as ReturnType<typeof importDataKey>;
-	};
-};
 
 // A tenant with secrets on V1 and V2: three written before V2 became active, two after.
 const mixedTenant = async () => {
@@ -120,7 +81,7 @@ describe("data key rotation", () => {
 	it("rotates mixed-version secrets fully, then the new key alone reads them all", async () => {
 		const { kv, store, keys, values, map } = await mixedTenant();
 		const before = await verifySecrets({ store, keys: ring(keys), scope, target: 2 });
-		expect(before).toEqual({ total: 5, onTarget: 2, needs: { 1: 3 }, unreadable: 0 });
+		expect(before).toEqual({ total: 5, onTarget: 2, needs: { 1: 3 }, unreadable: 0, rejected: 0 });
 		expect(fullyRotated(before)).toBe(false);
 
 		const result = await rewriteSecrets({ store, keys: ring(keys), scope, target: 2, now: () => new Date(1) });
@@ -231,7 +192,8 @@ describe("data key rotation", () => {
 			},
 		});
 		expect(statSync(path).mode & 0o777).toBe(0o600);
-		expect(readProgress(path)?.phase).toBe("rewritten");
+		expect(readProgress(path, "tenant-a", "local")?.phase).toBe("rewritten");
+		expect(() => readProgress(path, "tenant-b", "local")).toThrow("not a rotation record");
 
 		const kvText = [...map].map(([name, entry]) => `${name}${entry.value}${JSON.stringify(entry.metadata)}`).join("\n");
 		const written = [readFileSync(path, "utf8"), JSON.stringify(result), JSON.stringify(verified), kvText].join("\n");
