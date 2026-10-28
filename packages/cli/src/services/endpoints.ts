@@ -1,6 +1,6 @@
 import { CliError } from "../errors.ts";
 import type { EnvironmentConfig, ProjectConfig } from "../project-config.ts";
-import { workerEnvironment, workerUrl } from "./environment.ts";
+import { pagesUrl, workerEnvironment, workerUrl } from "./environment.ts";
 
 // Where an environment's Workers answer: `takebase dev`'s localhost ports
 // locally, each Worker's workers.dev URL remotely.
@@ -26,6 +26,16 @@ export const appEndpoint = (project: ProjectConfig, environment: EnvironmentConf
 		? remoteUrl(environment, project.workers.app, environment.appEnv, "the app Worker")
 		: `http://localhost:${environment.appPort}`,
 });
+
+// The static admin app, when the project has one: `takebase dev`'s port
+// locally, its Cloudflare Pages project remotely.
+export const adminEndpoint = (project: ProjectConfig, environment: EnvironmentConfig): Endpoint | undefined => {
+	if (project.workers.admin === undefined) return undefined;
+	return {
+		label: "admin",
+		url: environment.remote ? pagesUrl(environment.adminProject ?? "") : `http://localhost:${environment.adminPort}`,
+	};
+};
 
 export const tenantEndpoint = (project: ProjectConfig, environment: EnvironmentConfig, id: string): Endpoint => {
 	const tenant = environment.tenants.find((candidate) => candidate.id === id);

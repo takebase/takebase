@@ -158,11 +158,24 @@ describe("package boundaries", () => {
 	});
 
 	it("only server packages may depend on Drizzle", () => {
-		for (const dir of ["packages/contracts", "packages/sdk", "packages/cli", "examples/sveltekit"]) {
+		for (const dir of [
+			"packages/contracts",
+			"packages/sdk",
+			"packages/cli",
+			"examples/sveltekit",
+			"packages/adminui",
+		]) {
 			expect(
 				dependencyNames(dir).filter((name) => name.startsWith("drizzle")),
 				dir,
 			).toEqual([]);
 		}
+	});
+
+	it("the admin reaches Takebase only through the public SDK (SEGU-222)", () => {
+		expect(dependencyNames("packages/adminui").filter((name) => name.startsWith("@takebase/"))).toEqual([
+			"@takebase/adapter-firebase",
+			"@takebase/sdk",
+		]);
 	});
 });

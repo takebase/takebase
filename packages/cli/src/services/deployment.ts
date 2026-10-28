@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { CliError } from "../errors.ts";
 import type { EnvironmentConfig, ProjectConfig, TenantConfig } from "../project-config.ts";
 import { readSecretsFile } from "../secrets-file.ts";
@@ -5,6 +6,7 @@ import { outputTail } from "../worker-target.ts";
 import {
 	assertOwned,
 	cloudflareEnv,
+	pagesUrl,
 	parseToolJson,
 	queryD1,
 	type WorkerEnvironment,
@@ -25,7 +27,8 @@ import {
 // `takebase deploy` and `takebase build`. Deploy runs in a fixed order and
 // stops at the first failure: global migrations, the global Worker and its
 // health, then each registered active tenant (migrations, Worker, health),
-// then the app (built with the environment's settings) and its page. Every
+// then the app (built with the environment's settings) and its page, then the
+// static admin (built the same way) on Cloudflare Pages and its page. Every
 // step is idempotent, so a rerun after a failure is safe. With `plan` it makes
 // read-only calls only and reports what it would run.
 
@@ -35,6 +38,8 @@ export type DeployStep = { step: string; outcome: DeployOutcome; detail: string 
 type Targets = {
 	global: WorkerEnvironment;
 	app: WorkerEnvironment;
+	// The admin's Cloudflare Pages project, when the project has an admin.
+	admin: string | undefined;
 	tenants: { tenant: TenantConfig; worker: WorkerEnvironment | undefined }[];
 };
 
@@ -54,6 +59,8 @@ export const deploymentTargets = (project: ProjectConfig, environment: Environme
 	};
 	owned("global", global);
 	owned("app", app);
+	const admin = project.workers.admin === undefined ? undefined : environment.adminProject;
+	if (admin !== undefined) assertOwned(environment, "admin Pages project", admin);
 	const tenants = environment.tenants.map((tenant) => {
 		const worker = workerEnvironment(project.workers.tenant, tenant.env);
 		if (worker) {
@@ -75,7 +82,7 @@ export const deploymentTargets = (project: ProjectConfig, environment: Environme
 		}
 		return { tenant, worker };
 	});
-	return { global, app, tenants };
+	return { global, app, admin, tenants };
 };
 
 // The logged-in Cloudflare user must reach the pinned account.
@@ -115,6 +122,26 @@ export const buildApp = (deps: RemoteDeps, project: ProjectConfig, environment: 
 	if (result.status !== 0) throw new CliError(`The app build failed:\n${outputTail(result.output)}`);
 };
 
+// The admin is static files: `vite build` writes them to the repository's
+// public/ (adapter-static), with the same settings as the app.
+export const buildAdmin = (deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig) => {
+	if (project.workers.admin === undefined) return;
+	const result = deps.run(project.workers.admin, "vite", ["build"], appSettings(project, environment));
+	if (result.status !== 0) throw new CliError(`The admin build failed:\n${outputTail(result.output)}`);
+};
+
+const adminOutput = (project: ProjectConfig) => join(project.root, "public");
+
+// Whether the account already has the admin's Pages project (read-only). An
+// entry matches when any of its fields is the name.
+const pagesProjectExists = (deps: RemoteDeps, dir: string, environment: EnvironmentConfig, name: string) => {
+	const result = deps.run(dir, "wrangler", ["pages", "project", "list", "--json"], cloudflareEnv(environment));
+	if (result.status !== 0) throw new CliError(`Listing Pages projects failed:\n${outputTail(result.output)}`);
+	const projects = parseToolJson(result.stdout);
+	if (!Array.isArray(projects)) throw new CliError("wrangler pages project list --json answered no list");
+	return projects.some((entry) => typeof entry === "object" && entry !== null && Object.values(entry).includes(name));
+};
+
 // Bundles each Worker environment without uploading (`wrangler deploy --dry-run`),
 // then builds the app with the environment's settings. Local only: no account is used.
 export const buildEnvironment = (
@@ -137,6 +164,10 @@ export const buildEnvironment = (
 	}
 	buildApp(deps, project, environment);
 	report({ step: "app build", outcome: "done", detail: `with ${environment.name} settings` });
+	if (project.workers.admin !== undefined) {
+		buildAdmin(deps, project, environment);
+		report({ step: "admin build", outcome: "done", detail: `with ${environment.name} settings -> public/` });
+	}
 };
 
 export const deployEnvironment = async (
@@ -240,5 +271,52 @@ export const deployEnvironment = async (
 		appUrl,
 		(answer) => answer.status === 200 && answer.body.includes("__sveltekit"),
 	);
+
+	if (targets.admin !== undefined) {
+		const pagesProject = targets.admin;
+		const adminUrl = pagesUrl(pagesProject);
+		const deploy = ["pages", "deploy", adminOutput(project), "--project-name", pagesProject, "--branch", "master"];
+		const adminDir = project.workers.admin ?? "";
+		const exists = pagesProjectExists(deps, adminDir, environment, pagesProject);
+		if (exists) emit({ step: "admin Pages project", outcome: "unchanged", detail: pagesProject });
+		else if (plan) emit({ step: "admin Pages project", outcome: "would run", detail: `create ${pagesProject}` });
+		else {
+			// Wrangler hands a new project's commands to Pages-on-Workers unless
+			// `--force` is set; once the project exists it uses classic Pages
+			// (https://<project>.pages.dev) and later deploys need no flag.
+			const create = ["pages", "project", "create", pagesProject, "--production-branch", "master", "--force"];
+			const result = deps.run(adminDir, "wrangler", create, cloudflareEnv(environment));
+			if (result.status !== 0) throw new CliError(`Creating the Pages project failed:\n${outputTail(result.output)}`);
+			emit({ step: "admin Pages project", outcome: "done", detail: `created ${pagesProject}` });
+		}
+		if (plan) {
+			const now = await getUrl(deps, adminUrl);
+			emit({ step: "admin build", outcome: "would run", detail: `vite build with ${environment.name} settings` });
+			emit({
+				step: "admin deploy",
+				outcome: "would run",
+				detail: `wrangler pages deploy --project-name ${pagesProject}`,
+			});
+			emit({ step: "admin check", outcome: "would run", detail: `${adminUrl} answers ${now.status} now` });
+		} else {
+			buildAdmin(deps, project, environment);
+			emit({ step: "admin build", outcome: "done", detail: `with ${environment.name} settings` });
+			const result = deps.run(adminDir, "wrangler", deploy, cloudflareEnv(environment));
+			if (result.status !== 0) throw new CliError(`The admin deploy failed:\n${outputTail(result.output)}`);
+			emit({ step: "admin deploy", outcome: "done", detail: `Pages project ${pagesProject}` });
+			// A new project's *.pages.dev name can take minutes to resolve.
+			const answer = await waitForUrl(
+				deps,
+				adminUrl,
+				(page) => page.status === 200 && page.body.includes("__sveltekit"),
+				{ attempts: 30, delayMs: 10_000 },
+			);
+			emit({
+				step: "admin check",
+				outcome: "done",
+				detail: `${adminUrl} ${answer.status} (attempt ${answer.attempt})`,
+			});
+		}
+	}
 	return steps;
 };

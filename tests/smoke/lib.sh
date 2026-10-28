@@ -71,8 +71,9 @@ second_window() {
 	read -r _
 }
 
+# `localhost`, not 127.0.0.1: Vite may listen on ::1 only.
 stack_up() {
-	curl -s -o /dev/null --max-time 2 http://127.0.0.1:5173/ 2>/dev/null &&
+	curl -s -o /dev/null --max-time 2 http://localhost:5173/ 2>/dev/null &&
 		curl -s -o /dev/null --max-time 2 http://127.0.0.1:8788/health 2>/dev/null
 }
 

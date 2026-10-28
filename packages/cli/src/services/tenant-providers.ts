@@ -6,7 +6,7 @@ import { CliError } from "../errors.ts";
 import { insertJsoncProperty } from "../jsonc.ts";
 import { dispatcherEmail, type EnvironmentConfig, type ProjectConfig, type TenantConfig } from "../project-config.ts";
 import { localDatabaseArgs, outputTail, resolveTarget, runTool } from "../worker-target.ts";
-import { queryD1, readWranglerFile, workerEnvironment, workerUrl } from "./environment.ts";
+import { pagesUrl, queryD1, readWranglerFile, workerEnvironment, workerUrl } from "./environment.ts";
 import { applyMigrations, readHistory } from "./migration-service.ts";
 import type { TenantPlan, TenantProvider, WorkerBindings } from "./provisioning.ts";
 
@@ -78,7 +78,13 @@ export const tenantPlan = async (
 			vars: {
 				TENANT_ID: tenant.id,
 				FIREBASE_DATABASE_URL: `https://${name}.firebaseio.com`,
-				CORS_ORIGINS: workerUrl(environment, app.workerName),
+				// The app and, when there is one, the admin on Cloudflare Pages.
+				CORS_ORIGINS: [
+					workerUrl(environment, app.workerName),
+					...(project.workers.admin !== undefined && environment.adminProject !== undefined
+						? [pagesUrl(environment.adminProject)]
+						: []),
+				].join(","),
 			},
 			services,
 			d1_databases: [{ binding: "DB", database_name: name, database_id, migrations_dir }],

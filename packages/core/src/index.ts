@@ -10,6 +10,8 @@ export type {
 	TenantMember,
 } from "./auth/membership.ts";
 export { AuthError, authenticateTenantMember, checkMembership } from "./auth/membership.ts";
+export type { CollectionAdminRoutesOptions } from "./collections/admin-routes.ts";
+export { createCollectionAdminRoutes } from "./collections/admin-routes.ts";
 export { id, timestamps } from "./collections/columns.ts";
 export type { ResolvedLookup } from "./collections/database-rules.ts";
 export type { CollectionDefinition, CollectionOptions } from "./collections/define-collection.ts";

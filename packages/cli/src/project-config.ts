@@ -20,6 +20,9 @@ export type EnvironmentConfig = {
 	// Wrangler environments of the global Worker and the app; undefined is the top level.
 	globalEnv: string | undefined;
 	appEnv: string | undefined;
+	// Remote only: the Cloudflare Pages project the admin deploys to, served at
+	// https://<adminProject>.pages.dev.
+	adminProject: string | undefined;
 	// Absolute path of the untracked secrets file (remote only).
 	secretsFile: string | undefined;
 	dispatcherPasswordKey: string | undefined;
@@ -27,16 +30,18 @@ export type EnvironmentConfig = {
 	dispatcherEmail: string;
 	// Local only: the emulators' fixed dispatcher password (never a real one).
 	dispatcherPassword: string | undefined;
-	// Local only: where `takebase dev` serves the global Worker and the app.
+	// Local only: where `takebase dev` serves the global Worker, the app and the admin.
 	globalPort: number | undefined;
 	appPort: number | undefined;
+	adminPort: number | undefined;
 	tenants: TenantConfig[];
 };
 
 export type ProjectConfig = {
 	root: string;
 	file: string;
-	workers: { global: string; tenant: string; app: string };
+	// `admin` is the optional static admin app (built to files, not a Worker).
+	workers: { global: string; tenant: string; app: string; admin: string | undefined };
 	environments: Record<string, EnvironmentConfig>;
 };
 
@@ -92,6 +97,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 		global: resolve(root, text(raw.workers.global, "workers.global")),
 		tenant: resolve(root, text(raw.workers.tenant, "workers.tenant")),
 		app: resolve(root, text(raw.workers.app, "workers.app")),
+		admin: raw.workers.admin === undefined ? undefined : resolve(root, text(raw.workers.admin, "workers.admin")),
 	};
 
 	const environments: Record<string, EnvironmentConfig> = {};
@@ -119,12 +125,14 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			workersSubdomain: optionalText(value.workersSubdomain, `${path}.workersSubdomain`),
 			globalEnv: optionalText(value.globalEnv, `${path}.globalEnv`),
 			appEnv: optionalText(value.appEnv, `${path}.appEnv`),
+			adminProject: optionalText(value.adminProject, `${path}.adminProject`),
 			secretsFile: secretsFile === undefined ? undefined : resolve(root, secretsFile),
 			dispatcherPasswordKey: optionalText(value.dispatcherPasswordKey, `${path}.dispatcherPasswordKey`),
 			dispatcherEmail: text(value.dispatcherEmail, `${path}.dispatcherEmail`),
 			dispatcherPassword: optionalText(value.dispatcherPassword, `${path}.dispatcherPassword`),
 			globalPort: value.globalPort === undefined ? undefined : port(value.globalPort, `${path}.globalPort`),
 			appPort: value.appPort === undefined ? undefined : port(value.appPort, `${path}.appPort`),
+			adminPort: value.adminPort === undefined ? undefined : port(value.adminPort, `${path}.adminPort`),
 			tenants,
 		};
 		// A remote environment without these could act on resources it does not own.
@@ -134,6 +142,9 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			}
 			if (environment.firebaseProject.startsWith("demo-")) {
 				throw invalid(`${path}.firebaseProject cannot be a demo-* project in a remote environment`);
+			}
+			if (workers.admin !== undefined && environment.adminProject === undefined) {
+				throw invalid(`${path}.adminProject is required for a remote environment with an admin`);
 			}
 			// Real passwords live only in the secrets file.
 			if (environment.dispatcherPassword !== undefined) {
@@ -148,6 +159,12 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			}
 			for (const key of ["globalPort", "appPort"] as const) {
 				if (environment[key] === undefined) throw invalid(`${path}.${key} is required for a local environment`);
+			}
+			if (environment.adminProject !== undefined) {
+				throw invalid(`${path}.adminProject is for remote environments only`);
+			}
+			if (workers.admin !== undefined && environment.adminPort === undefined) {
+				throw invalid(`${path}.adminPort is required for a local environment with an admin`);
 			}
 			const missing = tenants.find((tenant) => tenant.port === undefined);
 			if (missing) throw invalid(`${path}.tenants.${missing.id}.port is required for a local environment`);

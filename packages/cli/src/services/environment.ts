@@ -137,6 +137,9 @@ export const remotePendingMigrations = (
 export const workerUrl = (environment: EnvironmentConfig, workerName: string) =>
 	`https://${workerName}.${environment.workersSubdomain}.workers.dev`;
 
+// A Cloudflare Pages project's production URL (the static admin).
+export const pagesUrl = (project: string) => `https://${project}.pages.dev`;
+
 // Remote environments act only on names they own: every Cloudflare and
 // Firebase resource name must start with the environment's namePrefix (the
 // Cloudflare account is shared with other projects).

@@ -9,6 +9,9 @@ export type {
 } from "./administration.ts";
 export { isInviteRedemption } from "./administration.ts";
 export type {
+	AdminCollection,
+	AdminCollectionField,
+	AdminCollectionList,
 	CollectionOperation,
 	CollectionRecord,
 	CreateInput,

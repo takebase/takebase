@@ -3,6 +3,7 @@ import {
 	authenticateTenantMember,
 	browserCors,
 	checkReadiness,
+	createCollectionAdminRoutes,
 	createCollectionRoutes,
 	createDiagnosticsRoutes,
 	createLogger,
@@ -149,6 +150,11 @@ app.route(
 			};
 		},
 	}),
+);
+
+app.route(
+	"/",
+	createCollectionAdminRoutes({ registry: collections, resolve: () => ({ auth: requestLocals.get("auth") ?? null }) }),
 );
 
 app.route(

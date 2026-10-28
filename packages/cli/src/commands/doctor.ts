@@ -11,6 +11,7 @@ import {
 import { readSecretsFile } from "../secrets-file.ts";
 import {
 	cloudflareEnv,
+	pagesUrl,
 	queryD1,
 	remotePendingMigrations,
 	type WorkerEnvironment,
@@ -76,7 +77,9 @@ const checkTools = (io: CliIo, report: Report, project: ProjectConfig) => {
 	const major = Number(process.versions.node.split(".")[0]);
 	report.expect(major >= 24, "node", `${process.version}${major >= 24 ? "" : " (needs 24 or later)"}`);
 	const versions = new Set<string>();
-	for (const [name, dir] of Object.entries(project.workers)) {
+	const { global, tenant, app } = project.workers;
+	// The Workers' own Wrangler; the static admin is not a Worker.
+	for (const [name, dir] of Object.entries({ global, tenant, app })) {
 		report.guard(`wrangler (${name})`, () => {
 			const result = runTool(dir, "wrangler", ["--version"]);
 			const version = toolVersion(result.stdout);
@@ -116,6 +119,35 @@ const checkLocalDatabases = (report: Report, label: string, worker: WorkerEnviro
 	}
 };
 
+// The browser origins a remote Worker must allow: the app and, when there is
+// one, the admin on Cloudflare Pages.
+const browserOrigins = (project: ProjectConfig, environment: EnvironmentConfig) => {
+	const app = workerEnvironment(project.workers.app, environment.appEnv);
+	return [
+		...(app ? [{ label: "the app", origin: workerUrl(environment, app.workerName) }] : []),
+		...(project.workers.admin !== undefined && environment.adminProject !== undefined
+			? [{ label: "the admin", origin: pagesUrl(environment.adminProject) }]
+			: []),
+	];
+};
+
+const checkCors = (
+	report: Report,
+	project: ProjectConfig,
+	environment: EnvironmentConfig,
+	label: string,
+	worker: WorkerEnvironment,
+) => {
+	const allowed = (worker.vars.CORS_ORIGINS ?? "").split(",");
+	for (const { label: what, origin } of browserOrigins(project, environment)) {
+		report.expect(
+			allowed.includes(origin),
+			`${label} CORS_ORIGINS allows ${what}`,
+			worker.vars.CORS_ORIGINS ?? "missing",
+		);
+	}
+};
+
 const checkConfiguration = (report: Report, project: ProjectConfig, environment: EnvironmentConfig) => {
 	report.section(`configuration (${relative(project.root, project.file)})`);
 	const env = environment.globalEnv;
@@ -129,14 +161,20 @@ const checkConfiguration = (report: Report, project: ProjectConfig, environment:
 			global.vars.FIREBASE_PROJECT_ID ?? "missing",
 		);
 		report.expect(global.d1.length === 1 && global.d1[0]?.binding === "DB", "global D1 binding DB");
-		if (environment.remote) checkRemoteNames(report, environment, "global", global);
-		else checkLocalDatabases(report, "global", global);
+		if (environment.remote) {
+			checkRemoteNames(report, environment, "global", global);
+			checkCors(report, project, environment, "global", global);
+		} else checkLocalDatabases(report, "global", global);
 	}
 
 	const app = workerEnvironment(project.workers.app, environment.appEnv);
 	report.expect(app !== undefined, "app Worker environment", describe(environment.appEnv));
 	if (app && environment.remote) {
 		report.expect(app.workerName.startsWith(environment.namePrefix ?? ""), "app Worker name", app.workerName);
+	}
+	if (project.workers.admin !== undefined && environment.remote) {
+		const name = environment.adminProject ?? "";
+		report.expect(name.startsWith(environment.namePrefix ?? ""), "admin Pages project", name || "missing");
 	}
 
 	const seen = new Map<string, string>();
@@ -168,14 +206,7 @@ const checkConfiguration = (report: Report, project: ProjectConfig, environment:
 				`${label} Realtime Database`,
 				url || "missing",
 			);
-			if (app) {
-				const origin = workerUrl(environment, app.workerName);
-				report.expect(
-					(worker.vars.CORS_ORIGINS ?? "").split(",").includes(origin),
-					`${label} CORS_ORIGINS allows the app`,
-					worker.vars.CORS_ORIGINS ?? "missing",
-				);
-			}
+			checkCors(report, project, environment, label, worker);
 		} else {
 			checkLocalDatabases(report, label, worker);
 			report.expect(

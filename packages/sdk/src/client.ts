@@ -1,6 +1,8 @@
 import type { InviteRedemption, TenantMembership } from "@takebase/contracts";
+import { createTenantAdministration, type TenantAdministration } from "./admin.ts";
 import { type FirebaseAuthLike, safeBaseUrl, tokenSource } from "./auth.ts";
 import { type CollectionClient, createCollectionClient } from "./collection.ts";
+import { createDiagnosticsClient, type TenantDiagnosticsClient } from "./diagnostics.ts";
 import { TakebaseError } from "./errors.ts";
 import { createHttp, type Fetch, type Http, type RequestOptions } from "./http.ts";
 import { createTenantRealtime, type RealtimeOptions, type TenantRealtime } from "./realtime.ts";
@@ -45,9 +47,14 @@ export type TakebaseClient = {
 	// stays bound to that tenant and rejects with `tenant_changed` after a switch
 	// or sign-out; its subscriptions end then.
 	collection: <Fields extends object = Record<string, unknown>>(name: string) => CollectionClient<Fields>;
+	// Administration and diagnostics of the selected tenant, for its admins: the
+	// Workers refuse everyone else. Bound to that tenant like `collection`.
+	admin: () => AdminClient;
 	// Stops following Firebase user changes and closes realtime.
 	close: () => void;
 };
+
+export type AdminClient = TenantAdministration & TenantDiagnosticsClient;
 
 type Selection = { membership: TenantMembership; http: Http; generation: number; realtime: TenantRealtime | null };
 
@@ -109,13 +116,28 @@ export const createClient = ({
 		return membership;
 	};
 
-	const collection = <Fields extends object>(name: string) => {
+	// The selected tenant, and an Http that only sends while it stays selected.
+	const bind = (what: string) => {
 		const bound = selection;
-		if (bound === null) throw new Error("Select a tenant with useTenant() before using collections");
+		if (bound === null) throw new Error(`Select a tenant with useTenant() before using ${what}`);
 		const current = () => bound.generation === generation;
-		const http: Http = {
-			send: (path, request) => (current() ? bound.http.send(path, request) : Promise.reject(changed())),
+		const guard = (target: Http): Http => ({
+			send: (path, request) => (current() ? target.send(path, request) : Promise.reject(changed())),
+		});
+		return { bound, current, guard, http: guard(bound.http) };
+	};
+
+	const admin = (): AdminClient => {
+		const { bound, guard, http } = bind("administration");
+		const tenantGlobal = guard(global);
+		return {
+			...createTenantAdministration(tenantGlobal, http, bound.membership.tenant.id),
+			...createDiagnosticsClient(tenantGlobal, http),
 		};
+	};
+
+	const collection = <Fields extends object>(name: string) => {
+		const { bound, current, http } = bind("collections");
 		// Revocation is a full sign-out, even when the user has other tenants:
 		// nothing from the revoked tenant stays in the app.
 		const subscribe = (collection: string, callback: SubscriptionCallback) => {
@@ -146,6 +168,7 @@ export const createClient = ({
 		useTenant,
 		tenant: () => selection?.membership ?? null,
 		collection,
+		admin,
 		close: () => {
 			unsubscribe();
 			reset();
