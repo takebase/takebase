@@ -137,6 +137,21 @@ Commands verified in Wave 5-3 (SEGU-221), with the same tool versions:
 - Locally: `pnpm smoke:diagnostics` (lint, typecheck, test, `takebase health`, the S-5-3-01 journey `pnpm journey:wire`), `pnpm dev:stack:stop` (`takebase dev --stop`), and `takebase wire status|test|retry`.
 - Against approved staging: `pnpm staging:health`, `pnpm staging:journey:wire` (`probe` is tenant-a's only admin since SEGU-221, so the journey keeps it) and `pnpm staging:logs` (`takebase logs tenant-a --env staging --for 60`); `pnpm staging:e2e` passed when the human ran it.
 
+Commands verified in Wave 5-4 (SEGU-222), with the same tool versions:
+- Locally:
+  - `pnpm smoke:admin` runs lint, typecheck, test, the admin's static build to the git-ignored root `public/`, `pnpm e2e:admin` and `takebase health` with the admin line. Run it with no stack up: Playwright starts its own stack for the journey.
+  - `pnpm e2e:admin` is the S-5-4-01 admin journey as `carol` (admin of tenant-a), plus `bob`'s refusals.
+  - `pnpm --filter @takebase/adminui check`.
+  - `takebase build --env staging`, which also builds the admin.
+  - `pnpm dev:stack` serves the admin (`packages/adminui`) on :5174.
+- Against approved staging:
+  - `pnpm staging:check` and `pnpm staging:deploy:plan`.
+  - `pnpm staging:deploy`. It creates the classic Pages project `takebase-staging-admin` once, with `--force`: Wrangler 4.151 otherwise hands new Pages projects to Workers. It then deploys the admin to https://takebase-staging-admin.pages.dev.
+  - `pnpm staging:health`, which includes the admin.
+  - `pnpm staging:seed`.
+  - A brand-new `*.pages.dev` name can take a minute to resolve locally.
+  - `pnpm staging:e2e` now includes `staging-admin.spec.ts` (`probe` as admin, `alice` refused); the human runs it.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping
