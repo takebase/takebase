@@ -25,6 +25,9 @@ export type EnvironmentConfig = {
 	adminProject: string | undefined;
 	// Absolute path of the untracked secrets file (remote only).
 	secretsFile: string | undefined;
+	// Absolute path of the untracked, mode-600 file holding the tenants' data
+	// keys (SEGU-223), as `DATA_KEY_V<n>_<TENANT>`. Defaults to the secrets file.
+	keysFile: string | undefined;
 	dispatcherPasswordKey: string | undefined;
 	// Each tenant's dispatcher user, e.g. "takebase-dispatcher+{tenant}@example.test".
 	dispatcherEmail: string;
@@ -117,6 +120,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			};
 		});
 		const secretsFile = optionalText(value.secretsFile, `${path}.secretsFile`);
+		const keysFile = optionalText(value.keysFile, `${path}.keysFile`) ?? secretsFile;
 		const environment: EnvironmentConfig = {
 			name,
 			remote: value.remote,
@@ -127,6 +131,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			appEnv: optionalText(value.appEnv, `${path}.appEnv`),
 			adminProject: optionalText(value.adminProject, `${path}.adminProject`),
 			secretsFile: secretsFile === undefined ? undefined : resolve(root, secretsFile),
+			keysFile: keysFile === undefined ? undefined : resolve(root, keysFile),
 			dispatcherPasswordKey: optionalText(value.dispatcherPasswordKey, `${path}.dispatcherPasswordKey`),
 			dispatcherEmail: text(value.dispatcherEmail, `${path}.dispatcherEmail`),
 			dispatcherPassword: optionalText(value.dispatcherPassword, `${path}.dispatcherPassword`),

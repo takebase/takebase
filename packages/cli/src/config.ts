@@ -27,7 +27,7 @@ export const commandGroups: readonly CommandGroup[] = [
 	{ name: "collection", summary: "Generate and inspect collections", status: "implemented" },
 	{ name: "migrate", summary: "Generate, inspect and apply local D1 migrations", status: "implemented" },
 	{ name: "wire", summary: "Test notifications and retry failed deliveries", status: "implemented" },
-	{ name: "secrets", summary: "Initialize, rotate, check and revoke encrypted secrets", status: "planned" },
+	{ name: "secrets", summary: "Initialize, check and inspect encrypted tenant secrets", status: "implemented" },
 	{ name: "backup", summary: "Create, list, verify, restore and prune backups", status: "planned" },
 	{ name: "logs", summary: "Inspect request and error logs", status: "implemented" },
 	{ name: "health", summary: "Check Worker and database health", status: "implemented" },

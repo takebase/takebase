@@ -73,6 +73,10 @@ export { authenticated, deny, hasRole, tenantMember } from "./rules/builtins.ts"
 export type { Decision } from "./rules/evaluate.ts";
 export { evaluateRule } from "./rules/evaluate.ts";
 export type { AuthIdentity, CollectionRules, Rule, RuleContext } from "./rules/types.ts";
+export type { SecretBinding, SecretErrorCode } from "./secrets/crypto.ts";
+export { SecretError } from "./secrets/crypto.ts";
+export type { DataKeys } from "./secrets/key-provider.ts";
+export { dataKeysFrom } from "./secrets/key-provider.ts";
 export {
 	AdminError,
 	actorOf,
@@ -89,6 +93,8 @@ export type { ClaimedEvent, ClaimOptions, OutboxService, RetryOptions } from "./
 export { createOutboxService } from "./services/outbox-d1-service.ts";
 export type { RevocationsService } from "./services/revocations-d1-service.ts";
 export { createRevocationsService } from "./services/revocations-d1-service.ts";
+export type { SecretsKv, SecretsService, SecretsServiceOptions } from "./services/secrets-kv-service.ts";
+export { createSecretsService, keyCheckPurpose } from "./services/secrets-kv-service.ts";
 export type { AnyD1Database } from "./storage/d1.ts";
 export {
 	auditEvents,

@@ -18,7 +18,9 @@
 		"TENANT_ID": "local",
 		"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
 		"FIREBASE_API_KEY": "demo-api-key",
-		"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-local"
+		"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-local",
+		"TAKEBASE_ENV": "local",
+		"DATA_KEY_VERSION": "1"
 	},
 	// Membership checks go to the global Worker's RPC entrypoint over a service
 	// binding, never a configurable URL. Bindings are not inherited by environments.
@@ -31,13 +33,18 @@
 			"migrations_dir": "../../../migrations/tenant"
 		}
 	],
+	// Encrypted secrets (SEGU-223): AES-256-GCM envelopes only, under data key
+	// DATA_KEY_V<DATA_KEY_VERSION>, which is a Worker secret, never a var.
+	"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-local-secrets" }],
 	"env": {
 		"tenant-a": {
 			"vars": {
 				"TENANT_ID": "tenant-a",
 				"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
 				"FIREBASE_API_KEY": "demo-api-key",
-				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-a"
+				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-a",
+				"TAKEBASE_ENV": "local",
+				"DATA_KEY_VERSION": "1"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
@@ -47,14 +54,17 @@
 					"database_id": "local-takebase-tenant-a",
 					"migrations_dir": "../../../migrations/tenant"
 				}
-			]
+			],
+			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-a-secrets" }]
 		},
 		"tenant-b": {
 			"vars": {
 				"TENANT_ID": "tenant-b",
 				"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
 				"FIREBASE_API_KEY": "demo-api-key",
-				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-b"
+				"FIREBASE_DATABASE_NAMESPACE": "demo-takebase-tenant-b",
+				"TAKEBASE_ENV": "local",
+				"DATA_KEY_VERSION": "1"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-example-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
@@ -64,7 +74,8 @@
 					"database_id": "local-takebase-tenant-b",
 					"migrations_dir": "../../../migrations/tenant"
 				}
-			]
+			],
+			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-b-secrets" }]
 		},
 		// Approved staging (SEGU-218): each tenant's real Realtime Database and remote
 		// D1. FIREBASE_API_KEY and the dispatcher credentials are uploaded as secrets
@@ -74,7 +85,9 @@
 			"vars": {
 				"TENANT_ID": "tenant-a",
 				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-a.firebaseio.com",
-				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev"
+				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev",
+				"TAKEBASE_ENV": "staging",
+				"DATA_KEY_VERSION": "1"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
@@ -84,6 +97,12 @@
 					"database_id": "58e47804-aeac-4a53-8c7c-8f84ae823d21",
 					"migrations_dir": "../../../migrations/tenant"
 				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "SECRETS",
+					"id": "7e829120f57142a9a9c87c3d2f35221c"
+				}
 			]
 		},
 		"staging-tenant-b": {
@@ -91,7 +110,9 @@
 			"vars": {
 				"TENANT_ID": "tenant-b",
 				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-b.firebaseio.com",
-				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev"
+				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev",
+				"TAKEBASE_ENV": "staging",
+				"DATA_KEY_VERSION": "1"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
@@ -100,6 +121,12 @@
 					"database_name": "takebase-staging-tenant-b",
 					"database_id": "8d5a7f27-9ab6-42e2-a77b-592a85d07512",
 					"migrations_dir": "../../../migrations/tenant"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "SECRETS",
+					"id": "a50e5974b3b845949f76113d97fdd793"
 				}
 			]
 		}

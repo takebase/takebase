@@ -12,7 +12,16 @@ export type WorkerBindings = {
 	vars: Record<string, string>;
 	services: { binding: string; service: string; entrypoint: string }[];
 	d1_databases: { binding: string; database_name: string; database_id: string; migrations_dir: string }[];
+	// The tenant's encrypted secrets (SEGU-223).
+	kv_namespaces?: { binding: string; id: string }[];
 };
+
+// What SEGU-223 added to every tenant environment. An environment provisioned
+// before it, which differs only by lacking these, is extended in place; any
+// other difference is still drift.
+export const secretsVars = ["TAKEBASE_ENV", "DATA_KEY_VERSION"];
+
+export type BindingAdditions = { vars: Record<string, string>; kv_namespaces?: WorkerBindings["kv_namespaces"] };
 
 export type Registration = { status: string; url: string };
 
@@ -31,9 +40,14 @@ export type TenantProvider = {
 	// The D1 database's id, or null when it does not exist.
 	database: () => Promise<string | null>;
 	createDatabase: () => Promise<string>;
+	// The secrets KV namespace's id, or null when it does not exist.
+	secretsNamespace: () => Promise<string | null>;
+	createSecretsNamespace: () => Promise<string>;
 	// The tenant's Wrangler environment, or null when it is not defined.
 	bindings: () => Promise<WorkerBindings | null>;
 	writeBindings: (bindings: WorkerBindings) => Promise<void>;
+	// Adds only missing members to an existing environment; never rewrites one.
+	extendBindings: (additions: BindingAdditions) => Promise<void>;
 	pendingMigrations: () => Promise<number>;
 	applyMigrations: () => Promise<void>;
 	// True when the Realtime Database holds a revision above the tenant D1's
@@ -51,8 +65,9 @@ export type TenantProvider = {
 export type TenantPlan = {
 	// Renders the tenant's Database Security Rules for its dispatcher uid.
 	rules: (dispatcherUid: string) => unknown;
-	// The Wrangler environment the tenant needs, given its D1 database id.
-	bindings: (databaseId: string) => WorkerBindings;
+	// The Wrangler environment the tenant needs, given its D1 database and
+	// secrets KV namespace ids.
+	bindings: (databaseId: string, secretsNamespaceId: string) => WorkerBindings;
 	// The URL to register: the tenant Worker the SDK routes to.
 	url: string;
 };
@@ -76,10 +91,30 @@ const canonical = (value: unknown): unknown =>
 			: value;
 const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
+// The SEGU-223 members `live` lacks, or null when anything else differs.
+const missingAdditions = (live: WorkerBindings, expected: WorkerBindings): BindingAdditions | null => {
+	const vars = Object.fromEntries(
+		secretsVars
+			.filter((key) => !(key in (live.vars ?? {})) && key in expected.vars)
+			.map((key) => [key, expected.vars[key] ?? ""]),
+	);
+	const kv_namespaces = live.kv_namespaces === undefined ? expected.kv_namespaces : undefined;
+	const extended = {
+		...live,
+		vars: { ...live.vars, ...vars },
+		...(kv_namespaces === undefined ? {} : { kv_namespaces }),
+	};
+	if (!same(extended, expected)) return null;
+	return { vars, ...(kv_namespaces === undefined ? {} : { kv_namespaces }) };
+};
+
 const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
 	// Values later steps need; detection fills them in.
 	let dispatcherUid: string | null = null;
 	let databaseId: string | null = null;
+	let namespaceId: string | null = null;
+	// Set when the environment exists but lacks only the SEGU-223 members.
+	let additions: BindingAdditions | null = null;
 	const need = <T>(value: T | null, what: string) => {
 		if (value === null) throw new Error(`needs the ${what} first`);
 		return value;
@@ -120,20 +155,36 @@ const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
 			},
 		},
 		{
+			name: "secrets namespace",
+			detect: async () => {
+				namespaceId = await provider.secretsNamespace();
+				return { done: namespaceId !== null, detail: namespaceId ?? "" };
+			},
+			apply: async () => {
+				namespaceId = await provider.createSecretsNamespace();
+			},
+		},
+		{
 			name: "worker bindings",
 			detect: async () => {
+				additions = null;
 				const live = await provider.bindings();
 				if (live === null) return { done: false, detail: "" };
-				const expected = plan.bindings(need(databaseId, "D1 database"));
-				// An existing environment that differs is drift: never overwrite it.
-				if (!same(live, expected)) {
-					throw new CliError("The tenant's Wrangler environment exists but differs from what provisioning expects", {
-						hint: `Expected ${JSON.stringify(expected)}; fix wrangler.jsonc by hand, then run provision again.`,
-					});
-				}
-				return { done: true, detail: "" };
+				const expected = plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace"));
+				if (same(live, expected)) return { done: true, detail: "" };
+				additions = missingAdditions(live, expected);
+				if (additions !== null) return { done: false, detail: "lacks the secrets bindings" };
+				// An existing environment that differs otherwise is drift: never overwrite it.
+				throw new CliError("The tenant's Wrangler environment exists but differs from what provisioning expects", {
+					hint: `Expected ${JSON.stringify(expected)}; fix wrangler.jsonc by hand, then run provision again.`,
+				});
 			},
-			apply: () => provider.writeBindings(plan.bindings(need(databaseId, "D1 database"))),
+			apply: () =>
+				additions !== null
+					? provider.extendBindings(additions)
+					: provider.writeBindings(
+							plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace")),
+						),
 		},
 		{
 			name: "tenant migrations",

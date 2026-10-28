@@ -45,6 +45,41 @@ type Status = "ok" | "warn" | "fail";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const secretVars = ["FIREBASE_API_KEY", "FIREBASE_DISPATCHER_EMAIL", "FIREBASE_DISPATCHER_PASSWORD"];
+// Tenant data keys (SEGU-223) are Worker secrets only.
+const dataKeyName = /^DATA_KEY_V[0-9]+$/;
+const kvIdPattern = /^[0-9a-f]{32}$/;
+
+// The tenant's SECRETS KV binding and its settings. An environment provisioned
+// before SEGU-223 only warns: `takebase tenant provision` adds them.
+const checkTenantSecrets = (
+	report: Report,
+	environment: EnvironmentConfig,
+	label: string,
+	worker: WorkerEnvironment,
+	seen: Map<string, string>,
+	tenantId: string,
+) => {
+	const namespace = worker.kv.find((kv) => kv.binding === "SECRETS");
+	if (!namespace) {
+		report.report("warn", `${label} SECRETS KV binding`, "missing; run `takebase tenant provision`");
+		return;
+	}
+	const wellFormed = environment.remote ? kvIdPattern.test(namespace.id) : namespace.id.startsWith("local-");
+	report.expect(wellFormed, `${label} SECRETS KV binding`, environment.remote ? shortId(namespace.id) : namespace.id);
+	const owner = seen.get(`kv:${namespace.id}`);
+	report.expect(owner === undefined, `${label} has its own secrets namespace`, owner ? `shared with ${owner}` : "");
+	seen.set(`kv:${namespace.id}`, tenantId);
+	report.expect(
+		worker.vars.TAKEBASE_ENV === environment.name,
+		`${label} TAKEBASE_ENV`,
+		worker.vars.TAKEBASE_ENV ?? "missing",
+	);
+	report.expect(
+		/^[1-9][0-9]*$/.test(worker.vars.DATA_KEY_VERSION ?? ""),
+		`${label} DATA_KEY_VERSION`,
+		worker.vars.DATA_KEY_VERSION ?? "missing",
+	);
+};
 
 const shortId = (id: string) => (id.length > 12 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id);
 
@@ -105,7 +140,7 @@ const checkRemoteNames = (report: Report, environment: EnvironmentConfig, label:
 			`${database.database_name} ${shortId(database.database_id)}`,
 		);
 	}
-	const leaked = secretVars.filter((name) => name in worker.vars);
+	const leaked = Object.keys(worker.vars).filter((name) => secretVars.includes(name) || dataKeyName.test(name));
 	report.expect(leaked.length === 0, `${label} keeps secrets out of vars`, leaked.join(", ") || "none in vars");
 };
 
@@ -197,6 +232,7 @@ const checkConfiguration = (report: Report, project: ProjectConfig, environment:
 			report.expect(owner === undefined, `${label} has its own D1 database`, owner ? `shared with ${owner}` : "");
 			seen.set(database.database_id, tenant.id);
 		}
+		checkTenantSecrets(report, environment, label, worker, seen, tenant.id);
 		const url = worker.vars.FIREBASE_DATABASE_URL ?? "";
 		if (environment.remote) {
 			checkRemoteNames(report, environment, label, worker);

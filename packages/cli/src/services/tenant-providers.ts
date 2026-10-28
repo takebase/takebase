@@ -8,7 +8,7 @@ import { dispatcherEmail, type EnvironmentConfig, type ProjectConfig, type Tenan
 import { localDatabaseArgs, outputTail, resolveTarget, runTool } from "../worker-target.ts";
 import { pagesUrl, queryD1, readWranglerFile, workerEnvironment, workerUrl } from "./environment.ts";
 import { applyMigrations, readHistory } from "./migration-service.ts";
-import type { TenantPlan, TenantProvider, WorkerBindings } from "./provisioning.ts";
+import type { BindingAdditions, TenantPlan, TenantProvider, WorkerBindings } from "./provisioning.ts";
 
 // The rules renderer comes from the tenant Worker's own realtime adapter
 // (`@takebase/adapter-firebase/rules`), resolved from the Worker's directory:
@@ -38,6 +38,10 @@ const localNamespace = (environment: EnvironmentConfig, tenant: TenantConfig) =>
 	`${environment.firebaseProject}-${tenant.id}`;
 
 export const localDatabaseId = (tenant: TenantConfig) => `local-takebase-${tenant.id}`;
+export const localSecretsNamespaceId = (tenant: TenantConfig) => `local-takebase-${tenant.id}-secrets`;
+
+// The data key version new secrets use; rotation (a later wave) raises it.
+export const dataKeyVersion = "1";
 
 // What one tenant of one environment must look like once provisioned.
 export const tenantPlan = async (
@@ -54,15 +58,18 @@ export const tenantPlan = async (
 	if (!environment.remote) {
 		return {
 			rules: databaseRules,
-			bindings: (database_id) => ({
+			bindings: (database_id, secretsNamespaceId) => ({
 				vars: {
 					TENANT_ID: tenant.id,
 					FIREBASE_DATABASE_URL: "http://127.0.0.1:9000",
 					FIREBASE_API_KEY: "demo-api-key",
 					FIREBASE_DATABASE_NAMESPACE: localNamespace(environment, tenant),
+					TAKEBASE_ENV: environment.name,
+					DATA_KEY_VERSION: dataKeyVersion,
 				},
 				services,
 				d1_databases: [{ binding: "DB", database_name: `takebase-${tenant.id}`, database_id, migrations_dir }],
+				kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
 			}),
 			url: `http://localhost:${tenant.port}`,
 		};
@@ -73,7 +80,7 @@ export const tenantPlan = async (
 	if (!app) throw new CliError(`The app has no Wrangler environment "${environment.appEnv}"`);
 	return {
 		rules: databaseRules,
-		bindings: (database_id) => ({
+		bindings: (database_id, secretsNamespaceId) => ({
 			name,
 			vars: {
 				TENANT_ID: tenant.id,
@@ -85,9 +92,12 @@ export const tenantPlan = async (
 						? [pagesUrl(environment.adminProject)]
 						: []),
 				].join(","),
+				TAKEBASE_ENV: environment.name,
+				DATA_KEY_VERSION: dataKeyVersion,
 			},
 			services,
 			d1_databases: [{ binding: "DB", database_name: name, database_id, migrations_dir }],
+			kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
 		}),
 		url: workerUrl(environment, name),
 	};
@@ -100,6 +110,15 @@ export const readBindings = (dir: string, env: string): WorkerBindings | null =>
 export const writeBindings = (dir: string, env: string, bindings: WorkerBindings) => {
 	const path = join(dir, "wrangler.jsonc");
 	writeFileSync(path, insertJsoncProperty(readFileSync(path, "utf8"), ["env"], env, bindings));
+};
+
+// Inserts only missing members; insertJsoncProperty refuses any that exist.
+export const extendBindings = (dir: string, env: string, { vars, kv_namespaces }: BindingAdditions) => {
+	const path = join(dir, "wrangler.jsonc");
+	let text = readFileSync(path, "utf8");
+	for (const [key, value] of Object.entries(vars)) text = insertJsoncProperty(text, ["env", env, "vars"], key, value);
+	if (kv_namespaces !== undefined) text = insertJsoncProperty(text, ["env", env], "kv_namespaces", kv_namespaces);
+	writeFileSync(path, text);
 };
 
 const sqlText = (value: string) => `'${value.replaceAll("'", "''")}'`;
@@ -185,8 +204,12 @@ export const localTenantProvider = (
 		// Local D1 databases exist as soon as Wrangler opens them.
 		database: async () => localDatabaseId(tenant),
 		createDatabase: async () => localDatabaseId(tenant),
+		// Local KV namespaces exist as soon as Wrangler opens them, like D1.
+		secretsNamespace: async () => localSecretsNamespaceId(tenant),
+		createSecretsNamespace: async () => localSecretsNamespaceId(tenant),
 		bindings: async () => readBindings(project.workers.tenant, tenant.env),
 		writeBindings: async (bindings) => writeBindings(project.workers.tenant, tenant.env, bindings),
+		extendBindings: async (additions) => extendBindings(project.workers.tenant, tenant.env, additions),
 		pendingMigrations: async () => readHistory(target()).pending.length,
 		applyMigrations: async () => {
 			applyMigrations(target());

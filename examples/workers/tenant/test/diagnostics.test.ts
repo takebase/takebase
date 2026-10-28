@@ -221,7 +221,7 @@ describe("tenant outbox diagnostics (SEGU-221)", () => {
 			service: "tenant",
 			tenantId: env.TENANT_ID,
 			status: "error",
-			checks: { database: "ok", global: "error", realtime: "unconfigured" },
+			checks: { database: "ok", global: "error", realtime: "unconfigured", secrets: "ok" },
 		});
 		expect(error).toHaveBeenCalled();
 	});

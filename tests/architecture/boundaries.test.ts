@@ -6,6 +6,7 @@ type D1Binding = { binding: string; database_name: string; database_id: string }
 type ServiceBinding = { binding: string; service: string; entrypoint?: string };
 type WranglerEnv = {
 	name?: string;
+	kv_namespaces?: { binding: string; id: string }[];
 	d1_databases?: D1Binding[];
 	services?: ServiceBinding[];
 	vars?: Record<string, string>;
@@ -95,20 +96,33 @@ describe("runtime boundaries", () => {
 				"FIREBASE_DATABASE_URL",
 				"FIREBASE_API_KEY",
 				"FIREBASE_DATABASE_NAMESPACE",
+				"TAKEBASE_ENV",
+				"DATA_KEY_VERSION",
 			]);
+			// Secrets (SEGU-223): a local KV namespace; the data key is a secret, never a var.
+			expect(env.kv_namespaces).toEqual([{ binding: "SECRETS", id: expect.stringMatching(/^local-.*-secrets$/) }]);
 		}
 		for (const env of tenantEnvs(true)) {
 			expect(env.services).toEqual([
 				{ binding: "GLOBAL", service: globalStaging?.name, entrypoint: "MembershipEntrypoint" },
 			]);
 			// In staging the API key and the dispatcher credentials are uploaded secrets.
-			expect(Object.keys(env.vars ?? {})).toEqual(["TENANT_ID", "FIREBASE_DATABASE_URL", "CORS_ORIGINS"]);
+			expect(Object.keys(env.vars ?? {})).toEqual([
+				"TENANT_ID",
+				"FIREBASE_DATABASE_URL",
+				"CORS_ORIGINS",
+				"TAKEBASE_ENV",
+				"DATA_KEY_VERSION",
+			]);
+			// Each tenant's own takebase-staging-<tenant>-secrets namespace (SEGU-223).
+			expect(env.kv_namespaces).toEqual([{ binding: "SECRETS", id: expect.stringMatching(/^[0-9a-f]{32}$/) }]);
 			expect(env.vars?.FIREBASE_DATABASE_URL).toMatch(/^https:\/\/takebase-staging-[a-z0-9-]+\.firebaseio\.com$/);
 		}
 		expect(globalStaging?.vars?.FIREBASE_PROJECT_ID).not.toMatch(/^demo-/);
 		for (const config of [global, tenant, frontend]) {
 			for (const env of [config, ...Object.values(config.env ?? {})]) {
 				expect(Object.keys(env.vars ?? {}), config.name as string).not.toContain("TAKEBASE_AUTH_EMULATOR");
+				for (const name of Object.keys(env.vars ?? {})) expect(name).not.toMatch(/^DATA_KEY_V[0-9]+$/);
 			}
 		}
 	});

@@ -8,6 +8,7 @@ import { healthCommand } from "./commands/health.ts";
 import { initCommand } from "./commands/init.ts";
 import { logsCommand } from "./commands/logs.ts";
 import { migrateCommand } from "./commands/migrate.ts";
+import { secretsCommand } from "./commands/secrets.ts";
 import { tenantCommand } from "./commands/tenant.ts";
 import { wireCommand } from "./commands/wire.ts";
 import { findCommandGroup } from "./config.ts";
@@ -35,6 +36,7 @@ const commands: Record<string, (args: string[], io: CliIo) => number | Promise<n
 	health: healthCommand,
 	wire: wireCommand,
 	logs: logsCommand,
+	secrets: (args, io) => secretsCommand(args, io),
 };
 
 const dispatch = (argv: string[], io: CliIo) => {

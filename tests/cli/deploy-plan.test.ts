@@ -168,6 +168,7 @@ const readOnly = ({ tool, args }: Call) => {
 	if (tool !== "wrangler") return false;
 	if (a === "whoami") return true;
 	if (a === "pages") return b === "project" && c === "list";
+	if (a === "kv") return b === "namespace" && c === "list";
 	if (a !== "d1") return false;
 	if (b === "list" || (b === "migrations" && c === "list")) return true;
 	return b === "execute" && /^select /i.test(args.at(-1) ?? "");
