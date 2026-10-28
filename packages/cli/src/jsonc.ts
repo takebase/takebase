@@ -46,7 +46,8 @@ export const parseJsonc = (text: string): unknown => {
 };
 
 // Edits that keep a JSONC file's comments and layout: the CLI adds a property
-// to one object (a tenant, a Wrangler environment) and never rewrites the rest.
+// to one object (a tenant, a Wrangler environment), or replaces one value (a
+// data key rotation activates its version), and never rewrites the rest.
 
 const stringEnd = (text: string, start: number) => {
 	let i = start + 1;
@@ -76,32 +77,44 @@ const valueEnd = (text: string, start: number): number => {
 	return j;
 };
 
-// The object at `path` (keys from the root): where it opens, and where its last
-// member's value ends (undefined when it has no members).
+// The members of the object opening at `start`: each key, where its value
+// starts and where it ends.
+const objectMembers = (text: string, start: number) => {
+	const found: { key: string; value: number; end: number }[] = [];
+	let j = start + 1;
+	for (;;) {
+		j = skipInsignificant(text, j);
+		if (text[j] === "}") return found;
+		const keyEnd = stringEnd(text, j);
+		const key = JSON.parse(text.slice(j, keyEnd)) as string;
+		const value = skipInsignificant(text, skipInsignificant(text, keyEnd) + 1);
+		const end = valueEnd(text, value);
+		found.push({ key, value, end });
+		j = skipInsignificant(text, end);
+		if (text[j] === ",") j++;
+	}
+};
+
+// The object at `path` (keys from the root): where it opens, its members, and
+// where its last member's value ends (undefined when it has no members).
 const locateObject = (text: string, path: string[]) => {
 	let open = skipInsignificant(text, 0);
 	if (text[open] !== "{") return undefined;
-	const members = (start: number) => {
-		const found: { key: string; value: number; end: number }[] = [];
-		let j = start + 1;
-		for (;;) {
-			j = skipInsignificant(text, j);
-			if (text[j] === "}") return found;
-			const keyEnd = stringEnd(text, j);
-			const key = JSON.parse(text.slice(j, keyEnd)) as string;
-			const value = skipInsignificant(text, skipInsignificant(text, keyEnd) + 1);
-			const end = valueEnd(text, value);
-			found.push({ key, value, end });
-			j = skipInsignificant(text, end);
-			if (text[j] === ",") j++;
-		}
-	};
 	for (const key of path) {
-		const member = members(open).find((candidate) => candidate.key === key);
+		const member = objectMembers(text, open).find((candidate) => candidate.key === key);
 		if (!member || text[member.value] !== "{") return undefined;
 		open = member.value;
 	}
-	return { open, lastEnd: members(open).at(-1)?.end };
+	const members = objectMembers(text, open);
+	return { open, members, lastEnd: members.at(-1)?.end };
+};
+
+// Replaces the value of the existing member `key` of the object at `path`.
+// Throws when the object or the member is missing.
+export const replaceJsoncProperty = (text: string, path: string[], key: string, value: unknown) => {
+	const member = locateObject(text, path)?.members.find((candidate) => candidate.key === key);
+	if (!member) throw new Error(`${[...path, key].join(".")} does not exist`);
+	return `${text.slice(0, member.value)}${JSON.stringify(value)}${text.slice(member.end)}`;
 };
 
 // Adds `"key": value` as the last member of the object at `path`, indented with

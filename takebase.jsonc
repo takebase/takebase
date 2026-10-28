@@ -22,6 +22,9 @@
 			// The tenants' local data keys (SEGU-223), written by `takebase secrets init`;
 			// untracked and mode 600. Staging keeps its keys in its secrets file.
 			"keysFile": "ops/.local.env",
+			// A directory escrow standing in for an external key manager (SEGU-224):
+			// every data key is deposited there first; untracked, mode 700.
+			"escrowDir": "ops/.escrow/local",
 			// `takebase dev` serves the global Worker, the app and the admin here, each tenant on its own port.
 			"globalPort": 8787,
 			"appPort": 5173,
@@ -43,6 +46,8 @@
 			// The admin's Cloudflare Pages project (https://takebase-staging-admin.pages.dev).
 			"adminProject": "takebase-staging-admin",
 			"secretsFile": "ops/.staging.env",
+			// The simulated escrow for the staging data keys (SEGU-224), untracked.
+			"escrowDir": "ops/.staging/escrow",
 			"dispatcherPasswordKey": "STAGING_PASSWORD_DISPATCHER_{TENANT}",
 			"dispatcherEmail": "takebase-staging-dispatcher-{tenant}@example.test",
 			"tenants": {

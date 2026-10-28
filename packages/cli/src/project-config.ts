@@ -28,6 +28,10 @@ export type EnvironmentConfig = {
 	// Absolute path of the untracked, mode-600 file holding the tenants' data
 	// keys (SEGU-223), as `DATA_KEY_V<n>_<TENANT>`. Defaults to the secrets file.
 	keysFile: string | undefined;
+	// Absolute path of the directory escrow (SEGU-224), which stands in for an
+	// external key manager: every data key is deposited there before it is
+	// installed, and `takebase secrets recover` restores a lost key from it.
+	escrowDir: string | undefined;
 	dispatcherPasswordKey: string | undefined;
 	// Each tenant's dispatcher user, e.g. "takebase-dispatcher+{tenant}@example.test".
 	dispatcherEmail: string;
@@ -121,6 +125,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 		});
 		const secretsFile = optionalText(value.secretsFile, `${path}.secretsFile`);
 		const keysFile = optionalText(value.keysFile, `${path}.keysFile`) ?? secretsFile;
+		const escrowDir = optionalText(value.escrowDir, `${path}.escrowDir`);
 		const environment: EnvironmentConfig = {
 			name,
 			remote: value.remote,
@@ -132,6 +137,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			adminProject: optionalText(value.adminProject, `${path}.adminProject`),
 			secretsFile: secretsFile === undefined ? undefined : resolve(root, secretsFile),
 			keysFile: keysFile === undefined ? undefined : resolve(root, keysFile),
+			escrowDir: escrowDir === undefined ? undefined : resolve(root, escrowDir),
 			dispatcherPasswordKey: optionalText(value.dispatcherPasswordKey, `${path}.dispatcherPasswordKey`),
 			dispatcherEmail: text(value.dispatcherEmail, `${path}.dispatcherEmail`),
 			dispatcherPassword: optionalText(value.dispatcherPassword, `${path}.dispatcherPassword`),

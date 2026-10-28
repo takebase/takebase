@@ -3,13 +3,15 @@
 # and their key rotation (SEGU-224, Wave 6-2):
 # static checks, the encryption tests (tampering, wrong tenant, environment
 # or key version, missing key, nothing secret in KV), the rotation tests
-# (mixed versions, resume, no leak), fresh local data keys
+# (mixed versions, resume, no leak), lost-key recovery from a simulated
+# escrow, fresh local data keys
 # for tenant-a and tenant-b, the stack's health and the S-6-1-01 journey. The
 # security details live in the automated tests.
 #
-# The local keys file (ops/.local.env) holds disposable demo keys only; this
-# script replaces it, and `pnpm dev:stack` (--fresh) starts each tenant's KV
-# empty, so nothing encrypted under an old key survives.
+# The local keys file (ops/.local.env), escrow (ops/.escrow/local) and rotation
+# records (ops/.rotation/local-*) hold disposable demo keys and counts only;
+# this script replaces them, and `pnpm dev:stack` (--fresh) starts each
+# tenant's KV empty, so nothing encrypted under an old key survives.
 #
 #   pnpm smoke:secrets            static checks, then the stack
 #   pnpm smoke:secrets --quick    skip lint, typecheck and pnpm test
@@ -41,6 +43,10 @@ run pnpm --filter @takebase/core exec vitest run test/secrets.test.ts
 check "AES-256-GCM envelopes refuse tampering, substitution and missing keys" 0 "5 passed"
 run pnpm exec vitest run tests/security/secret-rotation.test.ts
 check "key rotation re-encrypts mixed versions, resumes, and leaks no key or value" 0 "4 passed"
+run pnpm exec vitest run tests/security/key-recovery.test.ts
+check "a lost key is restored from the simulated escrow only if it opens the secrets" 0 "3 passed"
+run pnpm exec vitest run tests/cli/secrets-rotate.test.ts
+check "secrets rotate retires the old key only when nothing needs it; recover reinstalls" 0 "3 passed"
 
 section "Local data keys"
 # Each tenant Worker loads its key when it starts, so the stack must be down.
@@ -48,7 +54,8 @@ if stack_up; then
 	fail "a local stack is running; stop it with pnpm dev:stack:stop first"
 	finish
 fi
-/bin/rm -f "$ROOT/ops/.local.env"
+/bin/rm -f "$ROOT/ops/.local.env" "$ROOT"/ops/.rotation/local-*.json
+/bin/rm -rf "$ROOT/ops/.escrow/local"
 run $CLI secrets init tenant-a
 check "takebase secrets init tenant-a generates and stores a key" 0 "Generated a new data key DATA_KEY_V1" "mode 600"
 run $CLI secrets init tenant-b

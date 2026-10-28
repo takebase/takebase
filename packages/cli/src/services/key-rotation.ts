@@ -146,15 +146,19 @@ export type VerifyResult = {
 	onTarget: number;
 	// Secrets still on another version, by version.
 	needs: Record<number, number>;
+	// Not a valid envelope, or on the target version but not opened by its key.
 	unreadable: number;
+	// The part of `unreadable` on the target version: the key does not open them.
+	rejected: number;
 };
 
 // True when no secret needs any key but the target.
 export const fullyRotated = (result: VerifyResult) =>
 	result.unreadable === 0 && Object.keys(result.needs).length === 0 && result.onTarget === result.total;
 
-// Opens every secret, each with the key its envelope names: proves which
-// versions are still needed. Nothing is written.
+// Opens every secret on the target version with its key and counts the
+// secrets still on other versions: proves which keys are still needed.
+// Nothing is written.
 export const verifySecrets = async ({
 	store,
 	keys,
@@ -166,7 +170,7 @@ export const verifySecrets = async ({
 	scope: RotationScope;
 	target: number;
 }): Promise<VerifyResult> => {
-	const result: VerifyResult = { total: 0, onTarget: 0, needs: {}, unreadable: 0 };
+	const result: VerifyResult = { total: 0, onTarget: 0, needs: {}, unreadable: 0, rejected: 0 };
 	for (const key of await store.names()) {
 		result.total++;
 		const parts = partsOf(key);
@@ -187,6 +191,7 @@ export const verifySecrets = async ({
 		} catch (error) {
 			if (!(error instanceof EnvelopeError || error instanceof CliError)) throw error;
 			result.unreadable++;
+			result.rejected++;
 		}
 	}
 	return result;
@@ -221,8 +226,34 @@ export type RotationProgress = {
 export const progressFile = (keysFile: string, environment: string, tenantId: string) =>
 	join(dirname(keysFile), ".rotation", `${environment}-${tenantId}.json`);
 
-export const readProgress = (path: string): RotationProgress | null =>
-	existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as RotationProgress) : null;
+const phases: readonly RotationPhase[] = ["installed", "activated", "rewritten", "verified", "retired"];
+
+// The recorded rotation of this tenant and environment, or null. A file that
+// is not one (corrupt, edited, or another tenant's) is refused, not trusted.
+export const readProgress = (path: string, tenantId: string, environment: string): RotationProgress | null => {
+	if (!existsSync(path)) return null;
+	let value: Partial<RotationProgress> | null = null;
+	try {
+		value = JSON.parse(readFileSync(path, "utf8")) as Partial<RotationProgress>;
+	} catch {}
+	const valid =
+		value !== null &&
+		typeof value === "object" &&
+		value.tenant === tenantId &&
+		value.environment === environment &&
+		Number.isSafeInteger(value.from) &&
+		(value.from ?? 0) >= 1 &&
+		value.to === (value.from ?? 0) + 1 &&
+		phases.includes(value.phase as RotationPhase) &&
+		typeof value.counts === "object" &&
+		value.counts !== null;
+	if (!valid) {
+		throw new CliError(`${path} is not a rotation record of tenant ${tenantId} (${environment})`, {
+			hint: "Check or remove it by hand: rotation never guesses its phase. Nothing was changed.",
+		});
+	}
+	return value as RotationProgress;
+};
 
 export const writeProgress = (path: string, progress: RotationProgress) => {
 	mkdirSync(dirname(path), { recursive: true, mode: 0o700 });

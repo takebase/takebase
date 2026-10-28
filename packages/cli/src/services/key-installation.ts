@@ -7,22 +7,21 @@ import type { EnvironmentConfig, ProjectConfig, TenantConfig } from "../project-
 import { addSecret, readSecretsFile } from "../secrets-file.ts";
 import { outputTail } from "../worker-target.ts";
 import { cloudflareEnv, parseToolJson, type WorkerEnvironment, workerEnvironment } from "./environment.ts";
+import { environmentEscrow } from "./key-escrow.ts";
+import { storedKeyName, workerKeyName } from "./key-names.ts";
 import type { RemoteDeps } from "./remote-workers.ts";
 
 // Tenant data keys (SEGU-223). A key is 32 random bytes, standard base64,
 // generated here or read from stdin; never an argument, never printed or
-// logged. It is stored first in the environment's untracked mode-600 keys
-// file (the escrow copy), then installed: remotely as the Worker secret
-// `DATA_KEY_V<n>` from a temporary mode-600 file, locally by `takebase dev`.
-// Nothing here ever replaces a stored or installed key.
+// logged. It is deposited first in the environment's escrow (`escrowDir`,
+// SEGU-224) when one is configured, then stored in the untracked mode-600 keys
+// file, then installed: remotely as the Worker secret `DATA_KEY_V<n>` from a
+// temporary mode-600 file, locally by `takebase dev`. Nothing here ever
+// replaces a stored or installed key.
 
 const keyPattern = /^[A-Za-z0-9+/]{43}=$/;
 
-export const workerKeyName = (version: number) => `DATA_KEY_V${version}`;
-
-// The keys file entry, e.g. DATA_KEY_V1_TENANT_A.
-export const storedKeyName = (tenantId: string, version: number) =>
-	`${workerKeyName(version)}_${tenantId.toUpperCase().replaceAll("-", "_")}`;
+export { storedKeyName, workerKeyName };
 
 export const generateKey = () => randomBytes(32).toString("base64");
 
@@ -86,7 +85,7 @@ export const remoteSecretNames = (
 };
 
 // `wrangler secret bulk` from a temporary mode-600 file, removed afterwards.
-const uploadKey = (
+export const uploadKey = (
 	deps: RemoteDeps,
 	project: ProjectConfig,
 	environment: EnvironmentConfig,
@@ -120,13 +119,13 @@ export type KeyInit = {
 	installedOn: string | null;
 };
 
-export const initKey = (
+export const initKey = async (
 	deps: RemoteDeps,
 	project: ProjectConfig,
 	environment: EnvironmentConfig,
 	tenantId: string,
 	readKey: (() => string) | undefined,
-): KeyInit => {
+): Promise<KeyInit> => {
 	const { tenant, worker, version } = secretsTarget(project, environment, tenantId);
 	const keysFile = keysFileOf(environment);
 	const stored = storedKeyName(tenant.id, version);
@@ -142,10 +141,17 @@ export const initKey = (
 	if (environment.remote ? installed : inFile) throw refuse("a key is already installed");
 	if (inFile && readKey !== undefined) throw refuse(`${stored} is already stored; it would be installed as is`);
 
+	const escrow = environmentEscrow(environment);
+	const entry = { tenantId: tenant.id, version };
+	if (!inFile && escrow !== null && (await escrow.has(entry))) {
+		throw refuse(`the ${escrow.label} already holds ${stored}; restore it with \`takebase secrets recover\``);
+	}
+
 	let source: KeyInit["source"] = "stored";
 	if (!inFile) {
 		const key = readKey === undefined ? generateKey() : parseKeyInput(readKey());
 		source = readKey === undefined ? "generated" : "stdin";
+		await escrow?.deposit(entry, key);
 		addSecret(keysFile, stored, key);
 	}
 	if (!environment.remote) return { tenantId: tenant.id, version, keysFile, source, installedOn: null };
@@ -155,12 +161,24 @@ export const initKey = (
 };
 
 // What `takebase dev` hands one tenant Worker (`wrangler dev --env-file`):
-// only that tenant's key, under its Worker secret name. Null without a key.
-export const localKeyFile = (environment: EnvironmentConfig, tenantId: string, version: number, dir: string) => {
-	const file = environment.keysFile;
-	const key = file === undefined ? undefined : readSecretsFile(file).values[storedKeyName(tenantId, version)];
-	if (key === undefined) return null;
+// only that tenant's keys for `versions` (the active one, plus the old one
+// while a rotation is unfinished), under their Worker secret names, and
+// DATA_KEY_VERSION when a local rotation changed it. Null without any key.
+export const localKeyFile = (
+	environment: EnvironmentConfig,
+	tenantId: string,
+	versions: number[],
+	dir: string,
+	override: number | null = null,
+) => {
+	const values = environment.keysFile === undefined ? {} : readSecretsFile(environment.keysFile).values;
+	const lines = versions.flatMap((version) => {
+		const key = values[storedKeyName(tenantId, version)];
+		return key === undefined ? [] : [`${workerKeyName(version)}=${key}\n`];
+	});
+	if (lines.length === 0) return null;
+	if (override !== null) lines.push(`DATA_KEY_VERSION=${override}\n`);
 	const path = join(dir, `${tenantId}.env`);
-	writeFileSync(path, `${workerKeyName(version)}=${key}\n`, { mode: 0o600 });
+	writeFileSync(path, lines.join(""), { mode: 0o600 });
 	return path;
 };
