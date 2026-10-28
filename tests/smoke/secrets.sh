@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Local acceptance smoke of the SEGU-223 encrypted tenant secrets (Wave 6-1):
+# Local acceptance smoke of the encrypted tenant secrets (SEGU-223, Wave 6-1)
+# and their key rotation (SEGU-224, Wave 6-2):
 # static checks, the encryption tests (tampering, wrong tenant, environment
-# or key version, missing key, nothing secret in KV), fresh local data keys
+# or key version, missing key, nothing secret in KV), the rotation tests
+# (mixed versions, resume, no leak), fresh local data keys
 # for tenant-a and tenant-b, the stack's health and the S-6-1-01 journey. The
 # security details live in the automated tests.
 #
@@ -37,6 +39,8 @@ fi
 section "Encryption"
 run pnpm --filter @takebase/core exec vitest run test/secrets.test.ts
 check "AES-256-GCM envelopes refuse tampering, substitution and missing keys" 0 "5 passed"
+run pnpm exec vitest run tests/security/secret-rotation.test.ts
+check "key rotation re-encrypts mixed versions, resumes, and leaks no key or value" 0 "4 passed"
 
 section "Local data keys"
 # Each tenant Worker loads its key when it starts, so the stack must be down.

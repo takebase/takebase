@@ -34,3 +34,5 @@ node_modules/
 
 # The admin build (packages/adminui), deployed to Cloudflare Pages
 /public/
+# Key rotation progress (`takebase secrets rotate`): versions, counts and times only
+/ops/.rotation/
