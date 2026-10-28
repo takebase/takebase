@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { CliError } from "../errors.ts";
 import { replaceJsoncProperty } from "../jsonc.ts";
 import type { EnvironmentConfig, ProjectConfig, TenantConfig } from "../project-config.ts";
@@ -44,6 +44,11 @@ import { importDataKey } from "./secret-envelopes.ts";
 // Remote KV may serve an old value for about 60 s after a write.
 const remoteSettleMs = 60_000;
 const maxRewritePasses = 3;
+
+// Activation edits the tracked wrangler.jsonc: a deploy from a copy without
+// the edit would point the Worker back at the old key, which is then retired.
+const commitReminder = (project: ProjectConfig) =>
+	`  Commit ${join(relative(project.root, project.workers.tenant), "wrangler.jsonc")} (DATA_KEY_VERSION) and run \`pnpm run cf-typegen\` there: a deploy without it would use the retired key.`;
 
 // The rotation recorded for this tenant, or null.
 export const rotationOf = (environment: EnvironmentConfig, tenantId: string) =>
@@ -230,6 +235,7 @@ export const rotateKey = async (
 				? `Activated ${workerKeyName(to)}: DATA_KEY_VERSION is ${to} in wrangler.jsonc and ${worker.workerName} is deployed.`
 				: `Activated ${workerKeyName(to)}: \`takebase dev\` now writes with it.`,
 		);
+		if (environment.remote) report(commitReminder(project));
 	}
 
 	// 3 and 4. Re-encrypt, then verify; a secret still on the old key goes back to re-encryption.
@@ -304,7 +310,7 @@ export const rotateKey = async (
 		report(
 			`  ${storedKeyName(tenant.id, from)} stays in the keys file${escrow === null ? "" : " and escrow"} as a record only.`,
 		);
-		if (!environment.remote) report("  Start the stack (`pnpm dev:stack`) to load it.");
+		report(environment.remote ? commitReminder(project) : "  Start the stack (`pnpm dev:stack`) to load it.");
 	}
 	return current;
 };

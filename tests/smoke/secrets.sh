@@ -5,7 +5,9 @@
 # or key version, missing key, nothing secret in KV), the rotation tests
 # (mixed versions, resume, no leak), lost-key recovery from a simulated
 # escrow, fresh local data keys
-# for tenant-a and tenant-b, the stack's health and the S-6-1-01 journey. The
+# for tenant-a and tenant-b, the stack's health, the S-6-1-01 journey and the
+# S-6-2-01 rotation journey (tenant-a: an interrupted rotation, resumed,
+# verified and retired; then a lost key recovered from the escrow). The
 # security details live in the automated tests.
 #
 # The local keys file (ops/.local.env), escrow (ops/.escrow/local) and rotation
@@ -16,7 +18,8 @@
 #   pnpm smoke:secrets            static checks, then the stack
 #   pnpm smoke:secrets --quick    skip lint, typecheck and pnpm test
 #
-# Starts `pnpm dev:stack` itself (one terminal is enough) and stops it with
+# Starts `pnpm dev:stack` itself (one terminal is enough), restarts it with
+# `pnpm dev:stack:keep` (KV kept) around the rotation, and stops it with
 # `pnpm dev:stack:stop` at the end. Emulators and local state only; no key or
 # secret value is printed.
 
@@ -72,5 +75,37 @@ check "takebase health: every tenant's secrets are ok" 0 "All Workers are live a
 section "S-6-1-01 journey"
 run node tests/fixtures/secrets-journey.ts
 check "pnpm journey:secrets" 0 "All S-6-1-01 checks passed."
+stop_stack
+
+section "S-6-2-01 rotation journey (tenant-a)"
+JOURNEY="node tests/fixtures/rotation-journey.ts"
+run $JOURNEY seed
+check "fixture secrets stored under DATA_KEY_V1" 0 "S-6-2-01 seed: passed."
+run $CLI secrets rotate tenant-a --limit 3
+check "an interrupted rotation (--limit 3) creates, escrows and activates DATA_KEY_V2" 0 "Created DATA_KEY_V2" "is at \"activated\""
+run $JOURNEY mixed
+check "the tenant's secrets are now on both keys" 0 "S-6-2-01 mixed: passed."
+start_stack dev:stack:keep
+run $CLI secrets check tenant-a
+check "mid-rotation the Worker (V1 and V2) opens its secrets" 0 "tenant tenant-a secrets: ok"
+refute "mid-rotation check reports no failure" "FAIL" "secrets: error"
+stop_stack
+run $CLI secrets rotate tenant-a
+check "the resumed rotation verifies every secret and retires DATA_KEY_V1" 0 "open with DATA_KEY_V2" "now has one key, DATA_KEY_V2"
+run $JOURNEY verify
+check "every secret reads back under DATA_KEY_V2 alone" 0 "S-6-2-01 verify: passed."
+start_stack dev:stack:keep
+run $CLI secrets check tenant-a
+check "after the restart the Worker opens its secrets with DATA_KEY_V2 alone" 0 "tenant tenant-a secrets: ok"
+refute "post-rotation check reports no failure" "FAIL" "secrets: error"
+stop_stack
+run $JOURNEY lose
+check "DATA_KEY_V2 is lost from the keys file" 0 "S-6-2-01 lose: passed."
+run $CLI secrets rotate tenant-a
+check "a rotation without the active key is refused" 1 "is not in" "secrets recover"
+run $CLI secrets recover tenant-a
+check "secrets recover restores DATA_KEY_V2 from the escrow after proving it" 0 "Restored DATA_KEY_V2 for tenant tenant-a from the escrow"
+run $JOURNEY verify
+check "every secret reads back again with the recovered key" 0 "S-6-2-01 verify: passed."
 
 finish
