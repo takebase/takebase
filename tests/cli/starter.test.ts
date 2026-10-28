@@ -84,6 +84,7 @@ describe("takebase help", () => {
 			"collection",
 			"migrate",
 			"wire",
+			"secrets",
 			"logs",
 			"health",
 		]);

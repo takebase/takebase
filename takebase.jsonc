@@ -19,6 +19,9 @@
 			"dispatcherEmail": "takebase-dispatcher+{tenant}@example.test",
 			// The Auth emulator's fixed password, as in tests/fixtures; never a real one.
 			"dispatcherPassword": "local-only-password",
+			// The tenants' local data keys (SEGU-223), written by `takebase secrets init`;
+			// untracked and mode 600. Staging keeps its keys in its secrets file.
+			"keysFile": "ops/.local.env",
 			// `takebase dev` serves the global Worker, the app and the admin here, each tenant on its own port.
 			"globalPort": 8787,
 			"appPort": 5173,

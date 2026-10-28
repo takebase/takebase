@@ -7,19 +7,27 @@ import { readSecretsFile } from "../secrets-file.ts";
 import { outputTail, runAnyTool, type ToolRunner } from "../worker-target.ts";
 
 // What one Wrangler environment of a Worker resolves to, as Wrangler resolves
-// it: `name` defaults to "<top-level name>-<env>"; vars, services and
-// d1_databases are not inherited from the top level.
+// it: `name` defaults to "<top-level name>-<env>"; vars, services,
+// d1_databases and kv_namespaces are not inherited from the top level.
 
 export type D1Binding = { binding: string; database_name: string; database_id: string; migrations_dir: string };
 export type ServiceBinding = { binding: string; service: string; entrypoint: string | undefined };
+export type KvBinding = { binding: string; id: string };
 export type WorkerEnvironment = {
 	workerName: string;
 	vars: Record<string, string>;
 	services: ServiceBinding[];
 	d1: D1Binding[];
+	kv: KvBinding[];
 };
 
-type RawSection = { name?: unknown; vars?: unknown; services?: unknown; d1_databases?: unknown };
+type RawSection = {
+	name?: unknown;
+	vars?: unknown;
+	services?: unknown;
+	d1_databases?: unknown;
+	kv_namespaces?: unknown;
+};
 type RawConfig = RawSection & { env?: Record<string, RawSection> };
 
 export const readWranglerFile = (dir: string): RawConfig => {
@@ -56,6 +64,10 @@ export const workerEnvironment = (dir: string, env: string | undefined): WorkerE
 			database_name: String(database.database_name),
 			database_id: String(database.database_id),
 			migrations_dir: String(database.migrations_dir ?? "migrations"),
+		})),
+		kv: list(section.kv_namespaces).map((namespace) => ({
+			binding: String(namespace.binding),
+			id: String(namespace.id),
 		})),
 	};
 };

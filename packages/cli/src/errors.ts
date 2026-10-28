@@ -16,4 +16,7 @@ export type CliIo = {
 	stdout: (text: string) => void;
 	stderr: (text: string) => void;
 	cwd: string;
+	// The whole of standard input (`takebase secrets init --stdin`); absent in
+	// callers that never read it.
+	stdin?: () => string;
 };

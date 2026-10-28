@@ -99,6 +99,16 @@ app.get("/health", async (c) => {
 	return c.json({ service, tenantId, status: "ok", database: (await checkDatabase()) ? "ok" : "error" });
 });
 
+// Secrets readiness: no key installed yet is "unconfigured" (the Worker
+// serves without secrets); a key that cannot open KV's canary is an error.
+// The check writes the canary on first use, with random bytes only.
+const checkSecrets = async () => {
+	const { secrets } = useContext();
+	if (!secrets) return "unconfigured" as const;
+	const state = await secrets.check();
+	return state === "ok" ? true : state === "mismatch" ? false : ("unconfigured" as const);
+};
+
 // Dependency readiness; `/health` above stays the plain liveness answer. The
 // global check reads this tenant's pending revocation over the RPC binding;
 // realtime is only checked for settings, so health never signs in to Firebase.
@@ -113,6 +123,7 @@ app.get("/health/ready", async (c) => {
 				return true;
 			},
 			realtime: async () => (realtime ? true : "unconfigured"),
+			secrets: checkSecrets,
 		},
 		log,
 	);

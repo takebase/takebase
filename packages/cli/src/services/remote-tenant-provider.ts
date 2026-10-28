@@ -25,7 +25,7 @@ import {
 	tenantSecrets,
 	waitForUrl,
 } from "./remote-workers.ts";
-import { readBindings, writeBindings } from "./tenant-providers.ts";
+import { extendBindings, readBindings, writeBindings } from "./tenant-providers.ts";
 
 // A remote environment's tenant: a Realtime Database instance in the Firebase
 // project, the dispatcher user (Identity Toolkit with the web API key), rules
@@ -44,6 +44,8 @@ export const remoteTenantProvider = (
 ): TenantProvider => {
 	const name = `${environment.namePrefix}${tenant.id}`;
 	assertOwned(environment, "tenant resource", name);
+	const secretsTitle = `${name}-secrets`;
+	assertOwned(environment, "tenant secrets KV namespace", secretsTitle);
 	const secretsFile = environment.secretsFile ?? "";
 	const passwordKey = dispatcherPasswordKey(environment, tenant.id) ?? "";
 	const email = dispatcherEmail(environment, tenant.id);
@@ -94,6 +96,10 @@ export const remoteTenantProvider = (
 			"firebase database:instances:list",
 		);
 		return (parseToolJson(result.stdout) as { result?: { name?: string; state?: string }[] } | undefined)?.result ?? [];
+	};
+	const namespaces = () => {
+		const result = wrangler(["kv", "namespace", "list"], "wrangler kv namespace list");
+		return (parseToolJson(result.stdout) as { id?: string; title?: string }[] | undefined) ?? [];
 	};
 	const databases = () => {
 		const result = wrangler(["d1", "list", "--json"], "wrangler d1 list");
@@ -165,8 +171,20 @@ export const remoteTenantProvider = (
 				throw new CliError(`wrangler d1 create printed no database id:\n${outputTail(result.output)}`);
 			return id;
 		},
+		secretsNamespace: async () => namespaces().find((namespace) => namespace.title === secretsTitle)?.id ?? null,
+		createSecretsNamespace: async () => {
+			const result = wrangler(
+				["kv", "namespace", "create", secretsTitle, "--update-config=false"],
+				"wrangler kv namespace create",
+			);
+			const id = /\b[0-9a-f]{32}\b/.exec(result.output)?.[0];
+			if (id === undefined)
+				throw new CliError(`wrangler kv namespace create printed no namespace id:\n${outputTail(result.output)}`);
+			return id;
+		},
 		bindings: async () => readBindings(project.workers.tenant, tenant.env),
 		writeBindings: async (bindings) => writeBindings(project.workers.tenant, tenant.env, bindings),
+		extendBindings: async (additions) => extendBindings(project.workers.tenant, tenant.env, additions),
 		pendingMigrations: async () =>
 			pendingRemoteMigrations(deps, project.workers.tenant, tenant.env, environment).length,
 		applyMigrations: async () => applyRemoteMigrations(deps, project.workers.tenant, tenant.env, environment),

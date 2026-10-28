@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCommandArgs } from "../args.ts";
@@ -11,6 +12,8 @@ import {
 	type ProjectConfig,
 	resolveEnvironment,
 } from "../project-config.ts";
+import { workerEnvironment } from "../services/environment.ts";
+import { localKeyFile } from "../services/key-installation.ts";
 import { applyMigrations } from "../services/migration-service.ts";
 import { provisionTenant } from "../services/provisioning.ts";
 import { localTenantProvider, tenantPlan } from "../services/tenant-providers.ts";
@@ -166,6 +169,8 @@ const stack = async (
 		});
 		children.push(child);
 	};
+	// The tenants' data keys for this run (mkdtemp: mode 700), removed on stop.
+	const keysDir = mkdtempSync(join(tmpdir(), "takebase-dev-keys-"));
 	const onSignal = () => stop(0);
 	process.on("SIGINT", onSignal);
 	process.on("SIGTERM", onSignal);
@@ -192,12 +197,17 @@ const stack = async (
 		);
 		await ready(`http://localhost:${environment.globalPort}/health`);
 		environment.tenants.forEach((tenant, index) => {
+			// Each tenant Worker gets only its own data key, from a mode-600 file
+			// that is removed when the stack stops: never a --var on a command line.
+			const version = Number(workerEnvironment(project.workers.tenant, tenant.env)?.vars.DATA_KEY_VERSION ?? "");
+			const keyFile = Number.isSafeInteger(version) ? localKeyFile(environment, tenant.id, version, keysDir) : null;
 			run(`tenant ${tenant.id}`, project.workers.tenant, "wrangler", [
 				...wranglerDev(tenant.port ?? 0, 9231 + index, tenant.env, {
 					CORS_ORIGINS: browserOrigins,
 					FIREBASE_DISPATCHER_EMAIL: dispatcherEmail(environment, tenant.id),
 					FIREBASE_DISPATCHER_PASSWORD: environment.dispatcherPassword ?? "",
 				}),
+				...(keyFile === null ? [] : ["--env-file", keyFile]),
 				"--persist-to",
 				tenantState(tenant.id),
 			]);
@@ -222,6 +232,7 @@ const stack = async (
 		stop(1);
 	}
 	const code = await done;
+	rmSync(keysDir, { recursive: true, force: true });
 	process.off("SIGINT", onSignal);
 	process.off("SIGTERM", onSignal);
 	return code;

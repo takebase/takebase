@@ -116,7 +116,7 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `collection` | Generate and inspect collections | Implemented |
 | `migrate` | Generate, inspect and apply local D1 migrations | Implemented (local only) |
 | `wire` | Inspect notification delivery, test it, retry dead events | Implemented (operator) |
-| `secrets` | Initialize, rotate, check and revoke secrets | Planned |
+| `secrets` | Initialize, check and inspect encrypted tenant secrets (rotation and revocation planned) | Implemented (operator) |
 | `backup` | Create, list, verify, restore and prune backups | Planned |
 | `health` | Liveness and readiness of every Worker and the app | Implemented (read-only) |
 | `logs` | Live, redacted request and error logs of a deployed Worker | Implemented (remote, read-only) |
@@ -200,6 +200,19 @@ pnpm staging:logs                                                # live tenant-a
 - **Logs:** every Worker log line is one redacted JSON event carrying the request's `x-request-id` (a well-formed client id, else `cf-ray`, else a UUID). Tokens, passwords, secrets, sensitive URL parameters and email addresses are masked, and errors keep only name and message. `takebase logs` streams `wrangler tail` and prints method, path without its query, status and request id per request, also masking the secrets file's values. Nothing is stored; history stays in Cloudflare's Workers Logs.
 - **Notification repair:** an outbox event that fails 10 times is parked as dead. `wire` is the operator's view (Cloudflare login, tenant and global D1). A tenant's `admin` has the same through its tenant Worker: `GET /api/admin/diagnostics` and `POST /api/admin/outbox/retry` (`{"ids": [...]}` or `{"dead": true}`). Retries republish collection revisions only; clients refetch through the collection rules. `POST /api/realtime/dispatch` flushes pending events without authority, like reconcile.
 - **Retention:** delivery runs delete delivered events older than 7 days (500 per run); dead events stay until retried. Diagnostics never show record ids or fields.
+
+### Encrypted tenant secrets
+
+```sh
+pnpm smoke:secrets      # local acceptance: checks, fresh local keys, health, the S-6-1-01 journey
+pnpm journey:secrets    # the journey alone, against a running `pnpm dev:stack`
+```
+
+- **Storage:** each tenant Worker keeps secrets in its own `SECRETS` KV namespace as AES-256-GCM envelopes (`{v, alg, kv, n, c}`): a fresh 96-bit nonce per encryption, and additional authenticated data binding each ciphertext to its tenant, environment, key version, purpose and name. KV never holds plaintext or keys, and an envelope moved to another tenant, environment, version or name does not open.
+- **Keys:** the data key is the Worker secret `DATA_KEY_V<n>` (32 random bytes, base64); the `DATA_KEY_VERSION` var names the active version. `takebase secrets init <tenant> [--env <name>]` generates it, or reads it with `--stdin` (for example `openssl rand -base64 32 | takebase secrets init tenant-a --stdin`). It is never an argument and never printed or logged. Init stores it first in the environment's untracked mode-600 keys file (`DATA_KEY_V1_TENANT_A`; `ops/.local.env` locally, the secrets file remotely), then installs it remotely through a temporary mode-600 file. It refuses when a key is already installed: it never replaces a key.
+- **Escrow is your job:** keep a copy of the keys file outside this machine. Ciphertext alone cannot be recovered, and neither R2 backups nor Cloudflare can recover a lost key.
+- **Check and status:** `takebase secrets check` asks each tenant's `/health/ready`, whose `secrets` check decrypts a random key-check canary (`unconfigured` until a key is installed, `error` when the key does not open KV). `takebase secrets status` shows key presence and the stored secrets' metadata, never a value.
+- **API:** the secrets service is Worker-internal (`useContext().secrets`, `put`/`get`/`status`/`check`); no HTTP route accepts or returns a secret value. Locally, `takebase dev` hands each tenant Worker only its own key from a mode-600 file it removes on stop. Rotation and revocation come later.
 
 ### Dev, build and deploy
 

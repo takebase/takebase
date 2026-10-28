@@ -16,10 +16,11 @@ import { deleteTenant, disableTenant, type LifecycleDeps } from "../../packages/
 
 const plan: TenantPlan = {
 	rules: (uid) => ({ rules: { dispatcher: uid } }),
-	bindings: (id): WorkerBindings => ({
-		vars: { TENANT_ID: "acme" },
+	bindings: (id, secretsId): WorkerBindings => ({
+		vars: { TENANT_ID: "acme", TAKEBASE_ENV: "test", DATA_KEY_VERSION: "1" },
 		services: [{ binding: "GLOBAL", service: "global", entrypoint: "MembershipEntrypoint" }],
 		d1_databases: [{ binding: "DB", database_name: "acme", database_id: id, migrations_dir: "m" }],
+		kv_namespaces: [{ binding: "SECRETS", id: secretsId }],
 	}),
 	url: "https://acme.example.test",
 };
@@ -30,6 +31,7 @@ const world = (crashAfter = 0) => {
 		dispatcher: null as string | null,
 		rules: null as unknown,
 		database: null as string | null,
+		secrets: null as string | null,
 		bindings: null as WorkerBindings | null,
 		pending: 2,
 		stale: true,
@@ -76,11 +78,29 @@ const world = (crashAfter = 0) => {
 				state.database = "db-1";
 				return state.database;
 			}),
+		secretsNamespace: async () => state.secrets,
+		createSecretsNamespace: () =>
+			act("secrets", () => {
+				once(state.secrets !== null, "secrets namespace");
+				state.secrets = "kv-1";
+				return state.secrets;
+			}),
 		bindings: async () => state.bindings,
 		writeBindings: (bindings) =>
 			act("bindings", () => {
 				once(state.bindings !== null, "Wrangler environment");
 				state.bindings = bindings;
+			}),
+		extendBindings: (additions) =>
+			act("extend", () => {
+				if (state.bindings === null) throw new Error("no environment to extend");
+				for (const key of Object.keys(additions.vars)) once(key in state.bindings.vars, key);
+				if (additions.kv_namespaces) once(state.bindings.kv_namespaces !== undefined, "kv_namespaces");
+				state.bindings = {
+					...state.bindings,
+					vars: { ...state.bindings.vars, ...additions.vars },
+					...(additions.kv_namespaces ? { kv_namespaces: additions.kv_namespaces } : {}),
+				};
 			}),
 		pendingMigrations: async () => state.pending,
 		applyMigrations: () =>
@@ -107,10 +127,20 @@ const world = (crashAfter = 0) => {
 	return { state, created, provider, actions: () => actions };
 };
 
-const ready = { realtime: 1, dispatcher: 1, rules: 1, database: 1, bindings: 1, migrations: 1, signals: 1, deploy: 1 };
+const ready = {
+	realtime: 1,
+	dispatcher: 1,
+	rules: 1,
+	database: 1,
+	secrets: 1,
+	bindings: 1,
+	migrations: 1,
+	signals: 1,
+	deploy: 1,
+};
 
 describe("tenant provisioning with a mocked provider (S-5-1-01)", () => {
-	const total = 9;
+	const total = 10;
 
 	it.each(Array.from({ length: total }, (_, index) => index + 1))(
 		"a crash after provider action %i, then a rerun, gives one ready tenant without duplicates",
@@ -144,13 +174,26 @@ describe("tenant provisioning with a mocked provider (S-5-1-01)", () => {
 		const { state, provider } = world();
 		state.realtime = true;
 		state.database = "db-1";
-		const drifted = { ...plan.bindings("db-1"), vars: { TENANT_ID: "someone-else" } };
+		state.secrets = "kv-1";
+		const drifted = { ...plan.bindings("db-1", "kv-1"), vars: { TENANT_ID: "someone-else" } };
 		state.bindings = drifted;
 		await expect(provisionTenant(provider, plan)).rejects.toThrow(/differs/);
 		expect(state.bindings).toBe(drifted);
 		expect(state.registration).toBeNull();
 		const planned = await provisionTenant(provider, plan, { plan: true });
 		expect(planned.find(({ step }) => step === "worker bindings")?.outcome).toBe("unknown");
+	});
+
+	it("extends an environment provisioned before SEGU-223 with only the secrets bindings", async () => {
+		const { state, created, provider } = world();
+		Object.assign(state, { realtime: true, dispatcher: "uid-1", database: "db-1", pending: 0, stale: false });
+		state.rules = plan.rules("uid-1");
+		Object.assign(state, { deployed: true, registration: { status: "active", url: plan.url } });
+		const { kv_namespaces: _, ...older } = plan.bindings("db-1", "kv-1");
+		state.bindings = { ...older, vars: { TENANT_ID: "acme" } };
+		await provisionTenant(provider, plan);
+		expect(state.bindings).toEqual(plan.bindings("db-1", "kv-1"));
+		expect(created).toEqual({ secrets: 1, extend: 1 });
 	});
 });
 

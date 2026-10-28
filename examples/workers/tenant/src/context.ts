@@ -1,11 +1,14 @@
 import { firebaseRealtime } from "@takebase/adapter-firebase";
 import {
 	createLogger,
+	createSecretsService,
+	dataKeysFrom,
 	type Logger,
 	type MembershipVerifier,
 	type RealtimeAdapter,
 	type RevocationSource,
 	requestIdOf,
+	type SecretsService,
 } from "@takebase/core";
 
 // Composition root: settings, service clients and per-request values.
@@ -21,6 +24,9 @@ export type AppContext = {
 	revocations: RevocationSource;
 	// This tenant's realtime service, or null when its dispatcher secrets are not set.
 	realtime: RealtimeAdapter | null;
+	// This tenant's encrypted secrets (SEGU-223), or null without a SECRETS KV
+	// binding. Worker-internal: no route accepts or returns a secret value.
+	secrets: SecretsService | null;
 	// Keeps background work (dispatch, revocation) alive after the response.
 	waitUntil: (work: Promise<unknown>) => void;
 	clientIp: string | null;
@@ -47,12 +53,26 @@ const createRealtime = (env: CloudflareBindings & RealtimeSecrets): RealtimeAdap
 	});
 };
 
+// The data keys are Worker secrets (`DATA_KEY_V<n>`), read only here; the
+// imported keys live in this request's service and nowhere else.
+const createSecrets = (env: CloudflareBindings, now: Date): SecretsService | null => {
+	if (!env.SECRETS || !env.TAKEBASE_ENV) return null;
+	return createSecretsService({
+		kv: env.SECRETS,
+		keys: dataKeysFrom(env as unknown as Record<string, unknown>),
+		tenantId: env.TENANT_ID,
+		environment: env.TAKEBASE_ENV,
+		now: () => now,
+	});
+};
+
 export const createContext = (
 	env: CloudflareBindings,
 	request?: Request,
 	execution?: Pick<ExecutionContext, "waitUntil">,
 ): AppContext => {
 	const requestId = requestIdOf(request);
+	const now = new Date();
 	return {
 		service: "tenant",
 		tenantId: env.TENANT_ID,
@@ -60,10 +80,11 @@ export const createContext = (
 		membership: env.GLOBAL as unknown as MembershipVerifier,
 		revocations: env.GLOBAL as unknown as RevocationSource,
 		realtime: createRealtime(env),
+		secrets: createSecrets(env, now),
 		waitUntil: (work) => (execution ? execution.waitUntil(work) : void work),
 		clientIp: request?.headers.get("cf-connecting-ip") ?? null,
 		requestId,
 		log: createLogger({ service: "tenant", tenantId: env.TENANT_ID, requestId }),
-		now: new Date(),
+		now,
 	};
 };
