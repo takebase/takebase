@@ -36,6 +36,8 @@ export const workerUrl = (name: string) => `https://${name}.${workersSubdomain}.
 export const globalUrl = () => workerUrl("takebase-staging-global");
 export const appUrl = () => workerUrl("takebase-staging-app");
 export const tenantUrl = (tenant: Tenant) => workerUrl(`takebase-staging-${tenant.id}`);
+// The static admin on Cloudflare Pages (SEGU-222).
+export const adminUrl = () => "https://takebase-staging-admin.pages.dev";
 
 const root = new URL("../", import.meta.url).pathname;
 export const opsPath = (name: string) => `${root}ops/${name}`;

@@ -104,3 +104,23 @@ export const isListEnvelope = (value: unknown): value is ListEnvelope<unknown> =
 		isCount(list.totalPages)
 	);
 };
+
+// GET /api/admin/collections, for an admin of this tenant only: how each
+// collection is declared, never its records. `rules` holds each operation's
+// rule name (e.g. "hasRole(agent)"), or null when the operation has no rule
+// and is therefore denied.
+export type AdminCollectionField = {
+	name: string;
+	// The field's validation rules as declared, e.g. ["required", "string", "max:32", "unique"].
+	rules: string[];
+};
+
+export type AdminCollection = {
+	name: string;
+	rules: Record<CollectionOperation, string | null>;
+	fields: AdminCollectionField[];
+	filters: Record<string, FilterOperator[]>;
+	sorts: string[];
+};
+
+export type AdminCollectionList = { collections: AdminCollection[] };

@@ -123,6 +123,9 @@ const stack = async (
 	}
 
 	const appOrigin = `http://localhost:${environment.appPort}`;
+	const adminOrigin = project.workers.admin === undefined ? undefined : `http://localhost:${environment.adminPort}`;
+	// The browser apps the Workers answer: the app, and the admin when there is one.
+	const browserOrigins = [appOrigin, ...(adminOrigin === undefined ? [] : [adminOrigin])].join(",");
 	const children: ChildProcess[] = [];
 	let stopping = false;
 	let stopped: (code: number) => void = () => {};
@@ -184,14 +187,14 @@ const stack = async (
 			"wrangler",
 			wranglerDev(environment.globalPort ?? 0, 9230, environment.globalEnv, {
 				TAKEBASE_AUTH_EMULATOR: "local-only",
-				CORS_ORIGINS: appOrigin,
+				CORS_ORIGINS: browserOrigins,
 			}),
 		);
 		await ready(`http://localhost:${environment.globalPort}/health`);
 		environment.tenants.forEach((tenant, index) => {
 			run(`tenant ${tenant.id}`, project.workers.tenant, "wrangler", [
 				...wranglerDev(tenant.port ?? 0, 9231 + index, tenant.env, {
-					CORS_ORIGINS: appOrigin,
+					CORS_ORIGINS: browserOrigins,
 					FIREBASE_DISPATCHER_EMAIL: dispatcherEmail(environment, tenant.id),
 					FIREBASE_DISPATCHER_PASSWORD: environment.dispatcherPassword ?? "",
 				}),
@@ -200,12 +203,16 @@ const stack = async (
 			]);
 		});
 		await Promise.all(environment.tenants.map(({ port }) => ready(`http://localhost:${port}/health`)));
-		// The app starts last, so once it answers the whole stack is up.
+		// The apps start last, so once they answer the whole stack is up.
 		run("app", project.workers.app, "vite", ["dev", "--port", String(environment.appPort), "--strictPort"]);
-		await ready(appOrigin);
+		if (project.workers.admin !== undefined) {
+			run("admin", project.workers.admin, "vite", ["dev", "--port", String(environment.adminPort), "--strictPort"]);
+		}
+		await Promise.all([appOrigin, ...(adminOrigin === undefined ? [] : [adminOrigin])].map((origin) => ready(origin)));
 		io.stdout(
 			`\nTakebase local stack is up (emulators only; nothing reaches Firebase or Cloudflare).\n` +
 				`  App:      ${appOrigin}\n` +
+				(adminOrigin === undefined ? "" : `  Admin:    ${adminOrigin}\n`) +
 				`  Global:   http://localhost:${environment.globalPort}\n` +
 				`  Tenants:  ${environment.tenants.map(({ id, port }) => `${id} http://localhost:${port}`).join(", ")}\n` +
 				"Press Ctrl-C to stop.\n",
@@ -225,7 +232,8 @@ const stack = async (
 // logging defaults).
 const stackPorts = (project: ProjectConfig, environment: EnvironmentConfig) => {
 	const ports = new Set<number>([4400, 4500]);
-	for (const port of [environment.globalPort, environment.appPort, ...environment.tenants.map((t) => t.port)]) {
+	const apps = [environment.globalPort, environment.appPort, environment.adminPort];
+	for (const port of [...apps, ...environment.tenants.map((t) => t.port)]) {
 		if (port !== undefined) ports.add(port);
 	}
 	for (let index = 0; index <= environment.tenants.length; index++) ports.add(9230 + index);

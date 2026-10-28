@@ -28,14 +28,14 @@ const write = (path: string, text: string) => {
 	writeFileSync(join(root, path), text);
 };
 
-type Overrides = { globalName?: string; tenantDatabase?: string; tenantRealtime?: string };
+type Overrides = { globalName?: string; tenantDatabase?: string; tenantRealtime?: string; adminProject?: string };
 
 // A copy of the staging layout: one remote environment, tenant-a provisioned.
-const project = ({ globalName, tenantDatabase, tenantRealtime }: Overrides = {}) => {
+const project = ({ globalName, tenantDatabase, tenantRealtime, adminProject }: Overrides = {}) => {
 	write(
 		"takebase.jsonc",
 		JSON.stringify({
-			workers: { global: "global", tenant: "tenant", app: "app" },
+			workers: { global: "global", tenant: "tenant", app: "app", admin: "admin" },
 			environments: {
 				staging: {
 					remote: true,
@@ -44,6 +44,7 @@ const project = ({ globalName, tenantDatabase, tenantRealtime }: Overrides = {})
 					workersSubdomain: "sub",
 					globalEnv: "staging",
 					appEnv: "staging",
+					adminProject: adminProject ?? "takebase-staging-admin",
 					secretsFile: "secrets.env",
 					dispatcherPasswordKey: "PASSWORD_DISPATCHER_{TENANT}",
 					dispatcherEmail: "dispatcher-{tenant}@example.test",
@@ -129,6 +130,7 @@ const recorder = ({ accounts = [account] }: { accounts?: string[] } = {}) => {
 					: [{ revision: 0 }];
 				return answer(JSON.stringify([{ results }]));
 			}
+			if (command.startsWith("pages project list")) return answer("[]");
 			if (command.startsWith("d1 list"))
 				return answer(JSON.stringify([{ name: "takebase-staging-tenant-a", uuid: "t-a" }]));
 			if (command.startsWith("database:instances:list"))
@@ -165,6 +167,7 @@ const readOnly = ({ tool, args }: Call) => {
 	if (tool === "firebase") return a === "database:instances:list" || a === "database:get";
 	if (tool !== "wrangler") return false;
 	if (a === "whoami") return true;
+	if (a === "pages") return b === "project" && c === "list";
 	if (a !== "d1") return false;
 	if (b === "list" || (b === "migrations" && c === "list")) return true;
 	return b === "execute" && /^select /i.test(args.at(-1) ?? "");
@@ -192,6 +195,10 @@ describe("deploy and remote provisioning plans (recording runner)", () => {
 			"app build",
 			"app deploy",
 			"app check",
+			"admin Pages project",
+			"admin build",
+			"admin deploy",
+			"admin check",
 		]);
 		expect(steps.find(({ step }) => step === "tenant tenant-c")?.outcome).toBe("skipped");
 
@@ -205,6 +212,9 @@ describe("deploy and remote provisioning plans (recording runner)", () => {
 			"wrangler deploy --env staging-tenant-a --secrets-file <temp>",
 			"vite build",
 			"wrangler deploy --env staging",
+			"wrangler pages project create takebase-staging-admin --production-branch master --force",
+			"vite build",
+			`wrangler pages deploy ${join(root, "public")} --project-name takebase-staging-admin --branch master`,
 		]);
 		const wrangler = real.calls.filter(({ tool }) => tool === "wrangler");
 		expect(wrangler.every(({ env }) => env.CLOUDFLARE_ACCOUNT_ID === account)).toBe(true);
@@ -243,6 +253,7 @@ describe("deploy and remote provisioning plans (recording runner)", () => {
 		[{ globalName: "seguvin-api" }, /global Worker "seguvin-api"/],
 		[{ tenantDatabase: "dbautos-main" }, /D1 database "dbautos-main"/],
 		[{ tenantRealtime: "takebase-eb6e3-default-rtdb" }, /Realtime Database "takebase-eb6e3-default-rtdb"/],
+		[{ adminProject: "basekit-admin" }, /admin Pages project "basekit-admin"/],
 	])("refuses a name outside the prefix (%o) before any call", async (overrides, message) => {
 		const { config, environment } = project(overrides);
 		const { deps, calls } = recorder();

@@ -7,7 +7,9 @@
 	"workers": {
 		"global": "examples/workers/global",
 		"tenant": "examples/workers/tenant",
-		"app": "examples/sveltekit"
+		"app": "examples/sveltekit",
+		// The static admin (SEGU-222), built to public/ for Cloudflare Pages.
+		"admin": "packages/adminui"
 	},
 	"environments": {
 		// Emulators and local D1 only (`takebase dev`, which `pnpm dev:stack` runs).
@@ -17,9 +19,10 @@
 			"dispatcherEmail": "takebase-dispatcher+{tenant}@example.test",
 			// The Auth emulator's fixed password, as in tests/fixtures; never a real one.
 			"dispatcherPassword": "local-only-password",
-			// `takebase dev` serves the global Worker and the app here, each tenant on its own port.
+			// `takebase dev` serves the global Worker, the app and the admin here, each tenant on its own port.
 			"globalPort": 8787,
 			"appPort": 5173,
+			"adminPort": 5174,
 			"tenants": {
 				"tenant-a": { "name": "Tenant A", "env": "tenant-a", "port": 8788 },
 				"tenant-b": { "name": "Tenant B", "env": "tenant-b", "port": 8789 }
@@ -34,6 +37,8 @@
 			"workersSubdomain": "info8841",
 			"globalEnv": "staging",
 			"appEnv": "staging",
+			// The admin's Cloudflare Pages project (https://takebase-staging-admin.pages.dev).
+			"adminProject": "takebase-staging-admin",
 			"secretsFile": "ops/.staging.env",
 			"dispatcherPasswordKey": "STAGING_PASSWORD_DISPATCHER_{TENANT}",
 			"dispatcherEmail": "takebase-staging-dispatcher-{tenant}@example.test",

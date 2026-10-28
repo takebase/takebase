@@ -28,7 +28,7 @@
 			"name": "takebase-staging-global",
 			"vars": {
 				"FIREBASE_PROJECT_ID": "takebase-eb6e3",
-				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev"
+				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev"
 			},
 			"d1_databases": [
 				{

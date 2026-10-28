@@ -1,5 +1,11 @@
 import { env } from "cloudflare:workers";
-import type { DispatchCounts, ErrorEnvelope, OutboxRetryResult, TenantDiagnostics } from "@takebase/contracts";
+import type {
+	AdminCollectionList,
+	DispatchCounts,
+	ErrorEnvelope,
+	OutboxRetryResult,
+	TenantDiagnostics,
+} from "@takebase/contracts";
 import {
 	type AuthIdentity,
 	createDiagnosticsRoutes,
@@ -165,6 +171,45 @@ describe("tenant outbox diagnostics (SEGU-221)", () => {
 			["evt-dead-1", "delivered"],
 			["evt-dead-2", "dead"],
 		]);
+	});
+
+	it("only this tenant's admins read collection metadata, which never carries records (SEGU-222)", async () => {
+		for (const [token, status, error] of [
+			[undefined, 401, "unauthenticated"],
+			["member", 403, "forbidden"],
+			["other-admin", 403, "forbidden"],
+		] as const) {
+			const refused = await send("/api/admin/collections", token);
+			expect([refused.status, await code(refused)]).toEqual([status, error]);
+		}
+		const holder = `Holder ${crypto.randomUUID()}`;
+		await env.DB.prepare(
+			"insert into policies (id, number, holder, status, created, updated) values (?, ?, ?, 'pending', ?, ?)",
+		)
+			.bind(recordId, "POL-META-1", holder, "2026-10-27T10:00:00.000Z", "2026-10-27T10:00:00.000Z")
+			.run();
+
+		const response = await send("/api/admin/collections", "admin");
+		expect(response.status).toBe(200);
+		const text = await response.text();
+		for (const value of [recordId, "POL-META-1", holder]) expect(text).not.toContain(value);
+		const { collections } = JSON.parse(text) as AdminCollectionList;
+		const policies = collections.find(({ name }) => name === "policies");
+		expect(policies?.rules).toEqual({
+			list: "tenantMember",
+			view: "tenantMember",
+			create: "hasRole(agent)",
+			update: "tenantMember",
+			delete: "deny",
+		});
+		expect(policies?.fields.find(({ name }) => name === "number")?.rules).toEqual([
+			"required",
+			"string",
+			"max:32",
+			"unique",
+		]);
+		expect(policies?.filters.status).toEqual(["eq", "ne", "in"]);
+		expect(policies?.sorts).toContain("created");
 	});
 
 	it("readiness names failing dependencies without saying why", async () => {

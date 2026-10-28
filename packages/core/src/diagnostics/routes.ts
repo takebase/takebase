@@ -43,7 +43,7 @@ const fail = (c: Context, code: ErrorCode, message: string) =>
 // The admin gate: a member holding this tenant's built-in `admin` role. The
 // membership guard already proved membership of this tenant only, so an admin
 // of another tenant is not a member here.
-const admin = (c: Context, auth: AuthIdentity | null) => {
+export const adminGate = (c: Context, auth: AuthIdentity | null) => {
 	if (!auth) return fail(c, "unauthenticated", "Authentication required");
 	if (!auth.roles.includes(adminRoleName)) return fail(c, "forbidden", "Only an admin of this tenant may do this");
 	return null;
@@ -97,7 +97,7 @@ export const createDiagnosticsRoutes = ({ resolve }: DiagnosticsRoutesOptions) =
 
 	routes.get("/api/admin/diagnostics", async (c) => {
 		const request = resolve();
-		const refused = admin(c, request.auth);
+		const refused = adminGate(c, request.auth);
 		if (refused) return refused;
 		const outbox = createOutboxService(request.db);
 		const [summary, dead, migrations, revocations] = await Promise.all([
@@ -118,7 +118,7 @@ export const createDiagnosticsRoutes = ({ resolve }: DiagnosticsRoutesOptions) =
 
 	routes.post("/api/admin/outbox/retry", async (c) => {
 		const request = resolve();
-		const refused = admin(c, request.auth);
+		const refused = adminGate(c, request.auth);
 		if (refused) return refused;
 		let body: unknown;
 		try {

@@ -9,6 +9,7 @@ export const password = "local-only-password";
 export const authEmulator = "http://127.0.0.1:9099";
 export const databaseEmulator = "http://127.0.0.1:9000";
 export const appOrigin = "http://localhost:5173";
+export const adminOrigin = "http://localhost:5174";
 export const globalPort = 8787;
 
 export const tenants = [
@@ -19,10 +20,12 @@ export const tenants = [
 export type TenantId = (typeof tenants)[number]["id"];
 
 // alice is an agent (may create policies) in both tenants; bob is a plain
-// member of tenant A only.
+// member of tenant A only; carol administers tenant A (the admin's journey,
+// SEGU-222) and is a plain member of tenant B.
 export const users = {
 	alice: { email: "alice@example.test", roles: { "tenant-a": "agent", "tenant-b": "agent" } },
 	bob: { email: "bob@example.test", roles: { "tenant-a": "member" } },
+	carol: { email: "carol@example.test", roles: { "tenant-a": "admin", "tenant-b": "member" } },
 } as const satisfies Record<string, { email: string; roles: Partial<Record<TenantId, string>> }>;
 
 export const namespace = (tenant: TenantId) => `demo-takebase-${tenant}`;
@@ -68,21 +71,30 @@ const globalSeed = (uids: Record<keyof typeof users, string>) => {
 		({ id, name, port }) =>
 			`insert into tenants (id, name, url, status, created, updated) values (${text(id)}, ${text(name)}, ${text(tenantUrl(port))}, 'active', ${now}, ${now}) on conflict(id) do update set name = excluded.name, url = excluded.url, status = 'active', updated = excluded.updated;`,
 	);
-	// Uids change with every emulator start, so memberships are rewritten. The
-	// access-revision triggers move each tenant's revision forward. Admins are
-	// left alone: global D1 never lets a tenant lose its last admin, and the
-	// fixture users hold no admin role.
+	// Uids change with every emulator start (global D1 survives it), so
+	// memberships are rewritten. Each fixture membership has a fixed id and
+	// only its subject is updated: global D1 never lets a tenant lose its last
+	// admin, so carol's admin row is kept, never deleted and re-added. Other
+	// admins are removed only where carol (the new uid) is admin by then. The
+	// access-revision triggers move each tenant's revision forward.
 	statements.push(
 		`delete from memberships where tenant_id in (${tenants.map(({ id }) => text(id)).join(", ")}) and role != 'admin';`,
 	);
+	const admins = new Set<string>();
 	for (const [name, { roles }] of Object.entries(users) as [keyof typeof users, (typeof users)[keyof typeof users]][]) {
 		for (const [tenant, role] of Object.entries(roles)) {
-			// Global D1 refuses a membership with an undeclared role.
+			if (role === "admin") admins.add(tenant);
+			// Global D1 refuses a membership with an undeclared role (`admin` is built in).
 			statements.push(
 				`insert or ignore into tenant_roles (tenant_id, name, created) values (${text(tenant)}, ${text(role)}, ${now});`,
-				`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(crypto.randomUUID())}, ${text(tenant)}, 'firebase', ${text(uids[name])}, ${text(role)}, ${now}, ${now});`,
+				`insert into memberships (id, tenant_id, provider, subject, role, created, updated) values (${text(`fixture-${name}-${tenant}-${role}`)}, ${text(tenant)}, 'firebase', ${text(uids[name])}, ${text(role)}, ${now}, ${now}) on conflict(id) do update set subject = excluded.subject, updated = excluded.updated;`,
 			);
 		}
+	}
+	for (const tenant of admins) {
+		statements.push(
+			`delete from memberships where tenant_id = ${text(tenant)} and role = 'admin' and id not like 'fixture-%';`,
+		);
 	}
 	return statements.join("\n");
 };
@@ -96,6 +108,23 @@ export const removeMembership = (uid: string, tenant: TenantId) =>
 		"--local",
 		"--command",
 		`delete from memberships where tenant_id = ${text(tenant)} and provider = 'firebase' and subject = ${text(uid)};`,
+	]);
+
+// Deletes a policy straight from a tenant's local D1 (`takebase dev` keeps
+// one state directory per tenant). Policies deny every delete through the
+// API, so a test that created one cleans up here; the specs share one stack.
+export const removePolicy = (tenant: TenantId, id: string) =>
+	wrangler(workerDir("tenant"), [
+		"d1",
+		"execute",
+		"DB",
+		"--local",
+		"--env",
+		tenant,
+		"--persist-to",
+		`.wrangler/state-${tenant}`,
+		"--command",
+		`delete from policies where id = ${text(id)};`,
 	]);
 
 // Seeds the fixture users and memberships, run by `takebase dev --seed` after

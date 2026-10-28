@@ -1,7 +1,7 @@
 import { parseCommandArgs } from "../args.ts";
 import { CliError, type CliIo } from "../errors.ts";
 import { loadProjectConfig, resolveEnvironment } from "../project-config.ts";
-import { appEndpoint, type Endpoint, globalEndpoint, tenantEndpoint } from "../services/endpoints.ts";
+import { adminEndpoint, appEndpoint, type Endpoint, globalEndpoint, tenantEndpoint } from "../services/endpoints.ts";
 
 // Liveness (`/health`) and dependency readiness (`/health/ready`) of every
 // Worker in one environment, plus whether the app answers. Read-only: plain
@@ -19,7 +19,7 @@ Options:
 
 For the global Worker and each tenant Worker, checks /health (the Worker runs)
 and /health/ready (its D1 database, the global RPC binding and realtime
-settings). Also checks that the app answers. Exits 1 when anything fails.
+settings). Also checks that the app (and, locally, the admin) answers. Exits 1 when anything fails.
 Locally, start the stack with \`takebase dev\` first.
 `;
 
@@ -95,10 +95,12 @@ export const healthCommand = async (args: string[], io: CliIo) => {
 			checks,
 		);
 	}
-	const app = appEndpoint(project, environment);
-	const answer = await get(app.url);
-	if (answer.status > 0 && answer.status < 400) line("ok", "app", `HTTP ${answer.status} ${app.url}`);
-	else line("fail", "app", "error" in answer ? `${answer.error} (${app.url})` : `HTTP ${answer.status}`);
+	for (const app of [appEndpoint(project, environment), adminEndpoint(project, environment)]) {
+		if (app === undefined) continue;
+		const answer = await get(app.url);
+		if (answer.status > 0 && answer.status < 400) line("ok", app.label, `HTTP ${answer.status} ${app.url}`);
+		else line("fail", app.label, "error" in answer ? `${answer.error} (${app.url})` : `HTTP ${answer.status}`);
+	}
 
 	io.stdout(failed === 0 ? "\nAll Workers are live and ready.\n" : `\n${failed} check(s) failed.\n`);
 	return failed === 0 ? 0 : 1;
