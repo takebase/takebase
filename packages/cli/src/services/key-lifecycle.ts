@@ -76,17 +76,13 @@ export const localKeys = (project: ProjectConfig, environment: EnvironmentConfig
 	return { versions: [...new Set(versions)], override: active === configured ? null : active };
 };
 
-// One tenant's SECRETS namespace as an envelope store.
-export const wranglerStore = (
-	deps: RemoteDeps,
-	project: ProjectConfig,
-	environment: EnvironmentConfig,
-	tenant: TenantConfig,
-): EnvelopeStore => {
-	const location = environment.remote
-		? ["--remote"]
-		: ["--local", "--persist-to", join(project.workers.tenant, ".wrangler", `state-${tenant.id}`)];
-	const kv = (args: string[]) => {
+// `wrangler kv key <args>` on one tenant's SECRETS namespace; returns stdout.
+const tenantKv =
+	(deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig, tenant: TenantConfig) =>
+	(args: string[]) => {
+		const location = environment.remote
+			? ["--remote"]
+			: ["--local", "--persist-to", join(project.workers.tenant, ".wrangler", `state-${tenant.id}`)];
 		const result = deps.run(
 			project.workers.tenant,
 			"wrangler",
@@ -96,12 +92,29 @@ export const wranglerStore = (
 		if (result.status !== 0) throw new CliError(`wrangler kv key ${args[0]} failed:\n${outputTail(result.output)}`);
 		return result.stdout;
 	};
+
+// Every KV key under `secret/` with its metadata (never a value).
+const listSecretKeys = (kv: (args: string[]) => string) => {
+	const list = parseToolJson(kv(["list", "--prefix", "secret/"]));
+	if (!Array.isArray(list)) throw new CliError("wrangler kv key list did not return a list");
+	return list.map((entry) => ({
+		name: String((entry as { name?: unknown }).name),
+		metadata: (entry as { metadata?: unknown }).metadata,
+	}));
+};
+
+// One tenant's SECRETS namespace as an envelope store, plus `entries` (names
+// with metadata) for backups.
+export const wranglerStore = (
+	deps: RemoteDeps,
+	project: ProjectConfig,
+	environment: EnvironmentConfig,
+	tenant: TenantConfig,
+): EnvelopeStore & { entries: () => Promise<{ name: string; metadata: unknown }[]> } => {
+	const kv = tenantKv(deps, project, environment, tenant);
 	return {
-		names: async () => {
-			const list = parseToolJson(kv(["list", "--prefix", "secret/"]));
-			if (!Array.isArray(list)) throw new CliError("wrangler kv key list did not return a list");
-			return list.map((entry) => String((entry as { name?: unknown }).name));
-		},
+		entries: async () => listSecretKeys(kv),
+		names: async () => listSecretKeys(kv).map((entry) => entry.name),
 		get: async (name) => {
 			const out = kv(["get", name, "--text"]);
 			const start = out.indexOf("{");

@@ -25,6 +25,9 @@
 			// A directory escrow standing in for an external key manager (SEGU-224):
 			// every data key is deposited there first; untracked, mode 700.
 			"escrowDir": "ops/.escrow/local",
+			// `takebase backup` (SEGU-225) writes to this bucket in local R2, persisted in
+			// the global Worker's git-ignored .wrangler/state-backups.
+			"backupBucket": "takebase-local-backups",
 			// `takebase dev` serves the global Worker, the app and the admin here, each tenant on its own port.
 			"globalPort": 8787,
 			"appPort": 5173,
@@ -48,6 +51,8 @@
 			"secretsFile": "ops/.staging.env",
 			// The simulated escrow for the staging data keys (SEGU-224), untracked.
 			"escrowDir": "ops/.staging/escrow",
+			// The private R2 bucket for backups (SEGU-225), created by `takebase backup init`.
+			"backupBucket": "takebase-staging-backups",
 			"dispatcherPasswordKey": "STAGING_PASSWORD_DISPATCHER_{TENANT}",
 			"dispatcherEmail": "takebase-staging-dispatcher-{tenant}@example.test",
 			"tenants": {

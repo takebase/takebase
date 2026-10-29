@@ -1,4 +1,5 @@
 import { inviteCommand, roleCommand, userCommand } from "./commands/administration.ts";
+import { backupCommand } from "./commands/backup.ts";
 import { collectionCommand } from "./commands/collection.ts";
 import { createCommand } from "./commands/create.ts";
 import { buildCommand, deployCommand } from "./commands/deploy.ts";
@@ -37,6 +38,7 @@ const commands: Record<string, (args: string[], io: CliIo) => number | Promise<n
 	wire: wireCommand,
 	logs: logsCommand,
 	secrets: (args, io) => secretsCommand(args, io),
+	backup: (args, io) => backupCommand(args, io),
 };
 
 const dispatch = (argv: string[], io: CliIo) => {
