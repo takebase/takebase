@@ -148,7 +148,7 @@ const recover = async (
 		io.stdout(
 			result.outcome === "restored"
 				? `Restored ${name} for tenant ${result.tenantId} from the escrow: it opens all ${result.opened} secret(s) stored under it.\n`
-				: `${name} for tenant ${result.tenantId} is already in the keys file; nothing restored.\n`,
+				: `${name} for tenant ${result.tenantId} is already in the keys file and opens all ${result.opened} secret(s) stored under it; nothing restored.\n`,
 		);
 		if (result.installed) io.stdout(`  Installed it again as the Worker secret ${name}.\n`);
 	}

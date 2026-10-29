@@ -72,14 +72,14 @@ export type Recovery = {
 	version: number;
 	// "present" when the keys file already had the key and nothing was restored.
 	outcome: "present" | "restored";
-	// Secrets on this version that the key was proven to open before it was restored.
+	// Secrets on this version that the key was proven to open.
 	opened: number;
 };
 
-// Restores one lost key into the keys file from the escrow. The escrowed key
-// must first open every secret stored under its version; a key that does not
-// is refused and nothing is written. Installing it on a remote Worker is the
-// caller's next step.
+// Restores one lost key into the keys file from the escrow. The key (the
+// stored one when the keys file still has it) must first open every secret
+// stored under its version; a key that does not is refused and nothing is
+// written. Installing it on a remote Worker is the caller's next step.
 export const recoverKey = async ({
 	escrow,
 	keysFile,
@@ -95,10 +95,8 @@ export const recoverKey = async ({
 }): Promise<Recovery> => {
 	const entry = { tenantId: scope.tenantId, version };
 	const name = storedKeyName(scope.tenantId, version);
-	if (readSecretsFile(keysFile).values[name] !== undefined) {
-		return { tenantId: scope.tenantId, version, outcome: "present", opened: 0 };
-	}
-	const key = await escrow.withdraw(entry);
+	const stored = readSecretsFile(keysFile).values[name];
+	const key = stored ?? (await escrow.withdraw(entry));
 	if (key === null) {
 		throw new CliError(`The ${escrow.label} has no ${name}`, {
 			hint: `Without ${workerKeyName(version)} the secrets it encrypted cannot be recovered. Nothing was changed.`,
@@ -109,10 +107,12 @@ export const recoverKey = async ({
 		wanted === version ? imported : Promise.reject(new CliError(`not recovering v${wanted}`));
 	const proof = await verifySecrets({ store, keys: ring, scope, target: version });
 	if (proof.rejected > 0) {
-		throw new CliError(`The escrowed ${name} does not open ${proof.rejected} secret(s) stored under it`, {
-			hint: "It is not the key these secrets were encrypted with. Nothing was changed.",
-		});
+		throw new CliError(
+			`The ${stored === undefined ? "escrowed" : "stored"} ${name} does not open ${proof.rejected} secret(s) stored under it`,
+			{ hint: "It is not the key these secrets were encrypted with. Nothing was changed." },
+		);
 	}
+	if (stored !== undefined) return { tenantId: scope.tenantId, version, outcome: "present", opened: proof.onTarget };
 	addSecret(keysFile, name, key);
 	return { tenantId: scope.tenantId, version, outcome: "restored", opened: proof.onTarget };
 };

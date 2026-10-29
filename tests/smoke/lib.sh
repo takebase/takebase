@@ -77,15 +77,17 @@ stack_up() {
 		curl -s -o /dev/null --max-time 2 http://127.0.0.1:8788/health 2>/dev/null
 }
 
-# Starts `pnpm dev:stack` in the background (log in $SMOKE_LOG_DIR) and waits
-# for the app, unless a stack already answers. stop_stack runs on exit.
+# Starts `pnpm dev:stack` (or the pnpm script given, e.g. dev:stack:keep) in the
+# background (log in $SMOKE_LOG_DIR) and waits for the app, unless a stack
+# already answers. stop_stack runs on exit.
 start_stack() {
+	local script="${1:-dev:stack}"
 	if stack_up; then
 		pass "local stack already running (left running at the end)"
 		return 0
 	fi
-	section "Starting pnpm dev:stack (log: $SMOKE_LOG_DIR/dev-stack.log)"
-	(cd "$ROOT" && pnpm dev:stack >"$SMOKE_LOG_DIR/dev-stack.log" 2>&1 &)
+	section "Starting pnpm $script (log: $SMOKE_LOG_DIR/dev-stack.log)"
+	(cd "$ROOT" && pnpm "$script" >"$SMOKE_LOG_DIR/dev-stack.log" 2>&1 &)
 	STACK_STARTED=1
 	local waited=0
 	until stack_up; do
