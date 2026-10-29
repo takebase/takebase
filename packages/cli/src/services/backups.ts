@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { constants, DatabaseSync } from "node:sqlite";
 import { CliError } from "../errors.ts";
 import {
 	type BackupCatalogEntry,
@@ -52,6 +52,12 @@ const contentTypes: Record<BackupPart["kind"], string> = {
 
 export const commitBackup = async (store: BackupStore, draft: BackupDraft, captured: CapturedPart[]) => {
 	const backupId = backupIdOf(draft.created, draft.scope, draft.tenantId);
+	// Before any write: a second backup in the same second must not overwrite a catalogued one.
+	const taken = (catalog: { backups: BackupCatalogEntry[] }) =>
+		catalog.backups.some((entry) => entry.backupId === backupId);
+	const duplicate = () =>
+		new CliError(`Backup ${backupId} is already in the catalog`, { hint: "Wait a second and run it again." });
+	if (taken(parseCatalog(await readText(store, catalogKey)))) throw duplicate();
 	const parts: BackupPart[] = [];
 	for (const { file, bytes, ...part } of captured) {
 		const object = describeObject(`${backupPrefix(backupId)}${file}`, bytes);
@@ -74,9 +80,7 @@ export const commitBackup = async (store: BackupStore, draft: BackupDraft, captu
 		"application/json",
 	);
 	const catalog = parseCatalog(await readText(store, catalogKey));
-	if (catalog.backups.some((entry) => entry.backupId === backupId)) {
-		throw new CliError(`Backup ${backupId} is already in the catalog`, { hint: "Wait a second and run it again." });
-	}
+	if (taken(catalog)) throw duplicate();
 	catalog.backups.push({
 		backupId,
 		created: manifest.created,
@@ -103,10 +107,21 @@ export type BackupVerification = {
 // database. Foreign keys are checked after the load, not during it: Wrangler
 // exports tables in creation order, which can put a child table before a
 // parent that a later migration recreated.
+// The SQL is untrusted on verify, so while it runs it may not attach other
+// databases (files) or run any pragma but the foreign key ones exports use.
+const replayPragmas = new Set(["defer_foreign_keys", "foreign_keys"]);
 export const replayD1 = (sql: string) => {
 	const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
 	try {
+		db.setAuthorizer((action, name) => {
+			if (action === constants.SQLITE_ATTACH || action === constants.SQLITE_DETACH) return constants.SQLITE_DENY;
+			if (action === constants.SQLITE_PRAGMA && !replayPragmas.has(String(name).toLowerCase())) {
+				return constants.SQLITE_DENY;
+			}
+			return constants.SQLITE_OK;
+		});
 		db.exec(sql);
+		db.setAuthorizer(null);
 		const integrity = db.prepare("PRAGMA integrity_check").all();
 		if (integrity.length !== 1 || integrity[0]?.integrity_check !== "ok") throw new Error("integrity_check failed");
 		if (db.prepare("PRAGMA foreign_key_check").all().length > 0) throw new Error("foreign_key_check found violations");
@@ -174,7 +189,13 @@ const verifyAgainst = async (
 		manifest,
 	});
 	if (entry === undefined) problems.push("not in the catalog (incomplete or foreign backup)");
-	const text = await readText(store, manifestKey(backupId)).catch(() => undefined);
+	const raw = await store.get(manifestKey(backupId));
+	let text: string | null | undefined = null;
+	try {
+		text = raw === null ? null : decoder.decode(raw);
+	} catch {
+		text = undefined;
+	}
 	if (text === null) problems.push("manifest missing");
 	const manifest = typeof text === "string" ? parseManifest(text) : null;
 	if (text !== null && manifest === null) problems.push("manifest unreadable");

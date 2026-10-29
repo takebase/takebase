@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	catalogKey,
@@ -173,5 +176,31 @@ describe("backup verification (R-6-3-01)", () => {
 		expect(verification.status).toBe("failed");
 		expect(verification.problems).toContain("not in the catalog (incomplete or foreign backup)");
 		expect(parseManifest(new TextDecoder().decode(b.objects.get(manifestKey(b.manifest.backupId))))).not.toBeNull();
+	});
+	it("refuses a second backup in the same second without touching the first", async () => {
+		const b = await backed();
+		const before = new Map(b.objects);
+		await expect(commitBackup(b.store, draft, await capture())).rejects.toThrow("is already in the catalog");
+		expect(b.objects).toEqual(before);
+		expect((await verifyBackup(b.store, b.manifest.backupId)).status).toBe("verified");
+	});
+
+	it("never lets an export attach a file while it is verified", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "takebase-attach-"));
+		const target = join(dir, "written.db");
+		try {
+			const parts = await capture();
+			const [d1] = parts;
+			const sql = `ATTACH DATABASE '${target}' AS x;\nCREATE TABLE x.t (a);\n${exportSql(migrations)}`;
+			parts[0] = { ...(d1 as CapturedPart), bytes: encode(sql) };
+			const { store } = memoryStore();
+			const manifest = await commitBackup(store, draft, parts);
+			const verification = await verifyBackup(store, manifest.backupId);
+			expect(verification.status).toBe("failed");
+			expect(verification.problems.join("\n")).toMatch(/d1\.sql: unreadable \(not authorized\)/);
+			expect(existsSync(target)).toBe(false);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

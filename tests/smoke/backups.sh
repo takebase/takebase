@@ -36,7 +36,7 @@ fi
 
 section "Backup tests"
 run pnpm exec vitest run tests/cli/backup-verify.test.ts
-check "damaged objects and tampered manifests fail verify and are never listed as verified" 0 "10 passed"
+check "damaged objects and tampered manifests fail verify and are never listed as verified; exports cannot attach files" 0 "12 passed"
 run pnpm exec vitest run tests/cli/backup-create.test.ts
 check "tenant, global and all backups cover their parts; no secret is written; names stay owned" 0 "4 passed"
 
