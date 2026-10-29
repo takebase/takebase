@@ -162,6 +162,16 @@ Commands verified in Wave 6-2 (SEGU-224), with the same tool versions:
   - `pnpm staging:journey:rotation:seed|mixed|verify|lose|cleanup` (tenant-a) and `pnpm staging:secrets:recover`. On staging `lose` deletes the Worker secret only; `ops/.staging.env` is never rewritten.
   - Both staging tenants are on `DATA_KEY_V2` since 2026-10-28. The escrow `ops/.staging/escrow` holds V2 only: the V1 keys predate it and remain in `ops/.staging.env` as records.
 
+Commands verified in Wave 6-3 (SEGU-225), with the same tool versions:
+- Locally:
+  - `pnpm smoke:backups` (18 steps, including the S-6-3-01 journey). Run it with no stack up: it starts and stops `pnpm dev:stack` itself, because local backups refuse a running stack.
+  - `takebase backup create --tenant <id> | --global | --all`, `backup list` and `backup verify <id> | --latest`, plus `pnpm journey:backups`. Local R2 lives in `examples/workers/global/.wrangler/state-backups`.
+  - `wrangler d1 export --local` has no `--persist-to`: the CLI copies `.wrangler/state-<tenant>` into a temporary directory with the Worker's `wrangler.jsonc`. Wrangler 4.151 has no `r2 object list`, so backups are found through `backups/catalog.json`.
+- Against approved staging:
+  - `pnpm staging:backup:init`, which created the private bucket `takebase-staging-backups` (no public access or r2.dev URL) on 2026-10-29.
+  - `pnpm staging:backup:create:all`, `staging:backup:list`, `staging:backup:verify` (`--latest`) and `staging:journey:backups`. The journey damages the newest backup and puts its bytes back, so it verifies again afterwards.
+  - The secrets file also holds public values (e.g. `FIREBASE_PROJECT_ID`, which is in `takebase.jsonc`); the journey's leak check skips values that are public in `takebase.jsonc`.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

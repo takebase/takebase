@@ -32,6 +32,9 @@ export type EnvironmentConfig = {
 	// external key manager: every data key is deposited there before it is
 	// installed, and `takebase secrets recover` restores a lost key from it.
 	escrowDir: string | undefined;
+	// The private R2 bucket `takebase backup` writes to (SEGU-225): locally a
+	// Wrangler-persisted bucket, remotely one the environment owns by name.
+	backupBucket: string | undefined;
 	dispatcherPasswordKey: string | undefined;
 	// Each tenant's dispatcher user, e.g. "takebase-dispatcher+{tenant}@example.test".
 	dispatcherEmail: string;
@@ -138,6 +141,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			secretsFile: secretsFile === undefined ? undefined : resolve(root, secretsFile),
 			keysFile: keysFile === undefined ? undefined : resolve(root, keysFile),
 			escrowDir: escrowDir === undefined ? undefined : resolve(root, escrowDir),
+			backupBucket: optionalText(value.backupBucket, `${path}.backupBucket`),
 			dispatcherPasswordKey: optionalText(value.dispatcherPasswordKey, `${path}.dispatcherPasswordKey`),
 			dispatcherEmail: text(value.dispatcherEmail, `${path}.dispatcherEmail`),
 			dispatcherPassword: optionalText(value.dispatcherPassword, `${path}.dispatcherPassword`),

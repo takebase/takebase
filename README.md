@@ -117,7 +117,7 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `migrate` | Generate, inspect and apply local D1 migrations | Implemented (local only) |
 | `wire` | Inspect notification delivery, test it, retry dead events | Implemented (operator) |
 | `secrets` | Initialize, check and inspect encrypted tenant secrets (rotation and revocation planned) | Implemented (operator) |
-| `backup` | Create, list, verify, restore and prune backups | Planned |
+| `backup` | Create, list and verify versioned R2 backups (restore and prune planned) | Implemented (operator) |
 | `health` | Liveness and readiness of every Worker and the app | Implemented (read-only) |
 | `logs` | Live, redacted request and error logs of a deployed Worker | Implemented (remote, read-only) |
 
@@ -213,6 +213,34 @@ pnpm journey:secrets    # the journey alone, against a running `pnpm dev:stack`
 - **Escrow is your job:** keep a copy of the keys file outside this machine. Ciphertext alone cannot be recovered, and neither R2 backups nor Cloudflare can recover a lost key.
 - **Check and status:** `takebase secrets check` asks each tenant's `/health/ready`, whose `secrets` check decrypts a random key-check canary (`unconfigured` until a key is installed, `error` when the key does not open KV). `takebase secrets status` shows key presence and the stored secrets' metadata, never a value.
 - **API:** the secrets service is Worker-internal (`useContext().secrets`, `put`/`get`/`status`/`check`); no HTTP route accepts or returns a secret value. Locally, `takebase dev` hands each tenant Worker only its own key from a mode-600 file it removes on stop. Rotation and revocation come later.
+
+### Backups
+
+```sh
+pnpm smoke:backups                 # local acceptance: checks, then the S-6-3-01 backup journey
+takebase backup create --all       # or --tenant <id> | --global; [--env <name>]
+takebase backup list               # newest first, each verified again now
+takebase backup verify --latest    # or a backup id
+```
+
+- **What a backup holds:**
+  - each selected D1 database as `wrangler d1 export` SQL, schema, data, indexes and triggers, with its `d1_migrations` history;
+  - each tenant's `SECRETS` KV namespace as the stored AES-256-GCM envelopes and their metadata (ciphertext only);
+  - `config.json`: the environment's tenant declarations, each Worker's binding names, the vars `TENANT_ID`, `TAKEBASE_ENV`, `DATA_KEY_VERSION` and `FIREBASE_DATABASE_NAMESPACE`, the repository's migration files with SHA-256, and the CLI version.
+- **Where it goes:** one private R2 bucket per environment (`backupBucket` in `takebase.jsonc`), under `backups/<id>/` with a `manifest.json`. Locally it is a Wrangler-persisted bucket in `examples/workers/global/.wrangler/state-backups`. Remotely, `takebase backup init --env <name>` creates it inside the environment's name prefix, with no public access, no r2.dev URL and no presigned links. The CLI runs everything through your own Wrangler login, pinned to `CLOUDFLARE_ACCOUNT_ID`. Who can read backups is whoever can read that bucket in the Cloudflare account. No Worker has an R2 binding.
+- **Manifest and verification:** the manifest lists every object with its size and SHA-256, each database's schema version (last applied migration) and migrations, each tenant's ciphertext count and the data key versions it needs, and a checksum of itself. Backups are found through `backups/catalog.json`, because Wrangler cannot list R2 objects. A backup is *verified* only when all of these hold, checked again on every `list` and `verify` (the result is never stored):
+  - it is in the catalog;
+  - its manifest and catalog checksums agree;
+  - every object is present with the recorded size and hash;
+  - every database export replays into an empty SQLite database that passes `integrity_check` and `foreign_key_check`, with the recorded migration history;
+  - every KV line is a ciphertext envelope, with the recorded count and key versions.
+  An interrupted backup never reaches the catalog. The checksums detect corruption, truncation, missing objects and edits, not someone with write access to the bucket who rewrites objects, manifest and catalog consistently.
+- **Consistency limits:** each part is captured at its own time, recorded as `capturedAt`. A backup is **not** one atomic snapshot across the global database, the tenant databases and KV: a write that lands between two exports appears in one and not the other. Each D1 export is a single database's export by Wrangler. A running remote export blocks other requests to that database, and Cloudflare does not export databases with virtual tables. Size and timeout limits of large exports are not claimed here. D1 Time Travel is a separate Cloudflare feature these backups neither use nor replace. Locally, `backup create` refuses while the stack runs.
+- **Not included:**
+  - data keys, the keys and secrets files, passwords, API keys and account IDs. A restore needs the key versions the manifest lists, from the keys file or the escrow, so keep the escrow separately;
+  - Firebase Auth users: export them with Firebase's own tools;
+  - Realtime Database notifications, which are ephemeral triggers rebuilt from D1.
+- **Restore order:** Wrangler exports tables in creation order. The global export lists `memberships` before the `tenants` table a later migration recreated, so a restore must defer or reorder foreign keys. Restore and prune are planned.
 
 ### Dev, build and deploy
 

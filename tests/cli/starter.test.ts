@@ -85,6 +85,7 @@ describe("takebase help", () => {
 			"migrate",
 			"wire",
 			"secrets",
+			"backup",
 			"logs",
 			"health",
 		]);
@@ -97,10 +98,10 @@ describe("takebase help", () => {
 	});
 
 	it("reports planned commands as not implemented instead of pretending", () => {
-		const { code, stderr } = cli("backup", "create");
+		const { code, stderr } = cli("backup", "restore");
 		expect(code).toBe(1);
-		expect(stderr).toContain("`takebase backup` is planned but not implemented yet");
-		expect(stderr).toContain("takebase --help");
+		expect(stderr).toContain("`takebase backup restore` is planned but not implemented yet");
+		expect(stderr).toContain("takebase backup --help");
 	});
 
 	it("rejects unknown commands and options with actionable errors", () => {
