@@ -307,8 +307,10 @@ export const rotateKey = async (
 		report(
 			`Retired ${workerKeyName(from)}${environment.remote ? ` from ${worker.workerName}` : ""}: tenant ${tenant.id} now has one key, ${workerKeyName(to)}.`,
 		);
+		// A key created before the escrow existed is in the keys file only.
+		const escrowed = escrow !== null && (await escrow.has({ tenantId: tenant.id, version: from }));
 		report(
-			`  ${storedKeyName(tenant.id, from)} stays in the keys file${escrow === null ? "" : " and escrow"} as a record only.`,
+			`  ${storedKeyName(tenant.id, from)} stays in the keys file${escrowed ? " and escrow" : ""} as a record only.`,
 		);
 		report(environment.remote ? commitReminder(project) : "  Start the stack (`pnpm dev:stack`) to load it.");
 	}

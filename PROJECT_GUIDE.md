@@ -152,6 +152,16 @@ Commands verified in Wave 5-4 (SEGU-222), with the same tool versions:
   - A brand-new `*.pages.dev` name can take a minute to resolve locally.
   - `pnpm staging:e2e` now includes `staging-admin.spec.ts` (`probe` as admin, `alice` refused); the human runs it.
 
+Commands verified in Wave 6-2 (SEGU-224), with the same tool versions:
+- Locally:
+  - `pnpm smoke:secrets` (31 steps, including the S-6-2-01 rotation journey). Run it with no stack up.
+  - `pnpm dev:stack:keep` (`takebase dev` without `--fresh`) restarts the stack with KV kept.
+  - `takebase secrets rotate <tenant> [--limit <n>] [--accept-destructive <tenant>:v<n>]` and `takebase secrets recover <tenant>`. Locally, rotate refuses while the stack runs.
+- Against approved staging:
+  - `pnpm staging:secrets:rotate:limit`, `staging:secrets:rotate` (tenant-a) and `staging:secrets:rotate:b`. Each rotation deploys that tenant Worker and edits `DATA_KEY_VERSION` in the tenant `wrangler.jsonc`; commit it and run `pnpm run cf-typegen` there.
+  - `pnpm staging:journey:rotation:seed|mixed|verify|lose|cleanup` (tenant-a) and `pnpm staging:secrets:recover`. On staging `lose` deletes the Worker secret only; `ops/.staging.env` is never rewritten.
+  - Both staging tenants are on `DATA_KEY_V2` since 2026-10-28. The escrow `ops/.staging/escrow` holds V2 only: the V1 keys predate it and remain in `ops/.staging.env` as records.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping
