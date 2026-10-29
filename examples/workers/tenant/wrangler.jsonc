@@ -87,7 +87,7 @@
 				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-a.firebaseio.com",
 				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev",
 				"TAKEBASE_ENV": "staging",
-				"DATA_KEY_VERSION": "1"
+				"DATA_KEY_VERSION": "2"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
@@ -112,7 +112,7 @@
 				"FIREBASE_DATABASE_URL": "https://takebase-staging-tenant-b.firebaseio.com",
 				"CORS_ORIGINS": "https://takebase-staging-app.info8841.workers.dev,https://takebase-staging-admin.pages.dev",
 				"TAKEBASE_ENV": "staging",
-				"DATA_KEY_VERSION": "1"
+				"DATA_KEY_VERSION": "2"
 			},
 			"services": [{ "binding": "GLOBAL", "service": "takebase-staging-global", "entrypoint": "MembershipEntrypoint" }],
 			"d1_databases": [
