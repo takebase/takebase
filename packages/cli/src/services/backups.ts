@@ -7,6 +7,7 @@ import {
 	type BackupScope,
 	backupIdOf,
 	backupPrefix,
+	canonicalJson,
 	catalogKey,
 	describeObject,
 	manifestChecksum,
@@ -27,6 +28,8 @@ import { parseEnvelope } from "./secret-envelopes.ts";
 export type BackupStore = {
 	get: (key: string) => Promise<Uint8Array | null>;
 	put: (key: string, bytes: Uint8Array, contentType: string) => Promise<void>;
+	// Removes an object; a missing one is not an error.
+	delete: (key: string) => Promise<void>;
 };
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -91,7 +94,7 @@ export const commitBackup = async (store: BackupStore, draft: BackupDraft, captu
 	return manifest;
 };
 
-const readText = async (store: BackupStore, key: string) => {
+export const readText = async (store: BackupStore, key: string) => {
 	const bytes = await store.get(key);
 	return bytes === null ? null : decoder.decode(bytes);
 };
@@ -103,14 +106,14 @@ export type BackupVerification = {
 	manifest: BackupManifest | null;
 };
 
-// The migration names of a D1 export, after replaying it into an empty SQLite
-// database. Foreign keys are checked after the load, not during it: Wrangler
-// exports tables in creation order, which can put a child table before a
-// parent that a later migration recreated.
+// Replays a D1 export into an empty in-memory SQLite database, then inspects
+// it. Foreign keys are checked after the load, not during it: Wrangler exports
+// tables in creation order, which can put a child table before a parent that a
+// later migration recreated.
 // The SQL is untrusted on verify, so while it runs it may not attach other
 // databases (files) or run any pragma but the foreign key ones exports use.
 const replayPragmas = new Set(["defer_foreign_keys", "foreign_keys"]);
-export const replayD1 = (sql: string) => {
+const replay = <T>(sql: string, inspect: (db: DatabaseSync) => T) => {
 	const db = new DatabaseSync(":memory:", { enableForeignKeyConstraints: false });
 	try {
 		db.setAuthorizer((action, name) => {
@@ -125,16 +128,119 @@ export const replayD1 = (sql: string) => {
 		const integrity = db.prepare("PRAGMA integrity_check").all();
 		if (integrity.length !== 1 || integrity[0]?.integrity_check !== "ok") throw new Error("integrity_check failed");
 		if (db.prepare("PRAGMA foreign_key_check").all().length > 0) throw new Error("foreign_key_check found violations");
-		const history = db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'd1_migrations'").all();
-		if (history.length === 0) return [];
-		return db
-			.prepare("SELECT name FROM d1_migrations ORDER BY id")
-			.all()
-			.map((row) => String(row.name));
+		return inspect(db);
 	} finally {
 		db.close();
 	}
 };
+
+const migrationNames = (db: DatabaseSync) => {
+	const history = db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'd1_migrations'").all();
+	if (history.length === 0) return [];
+	return db
+		.prepare("SELECT name FROM d1_migrations ORDER BY id")
+		.all()
+		.map((row) => String(row.name));
+};
+
+export const replayD1 = (sql: string) => replay(sql, migrationNames);
+
+// What a D1 export holds, as digests to compare two exports: every table,
+// index and trigger definition, and each table's rows in any order.
+export const contentDigest = (sql: string) =>
+	replay(sql, (db) => {
+		const schema = db
+			.prepare(
+				"SELECT type, name, sql FROM sqlite_schema WHERE substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY type, name",
+			)
+			.all();
+		const tables: Record<string, { rows: number; sha256: string }> = {};
+		for (const { type, name } of schema) {
+			if (type !== "table") continue;
+			const rows = db
+				.prepare(`SELECT * FROM "${String(name).replaceAll('"', '""')}"`)
+				.all()
+				.map((row) => canonicalJson(row))
+				.sort();
+			tables[String(name)] = { rows: rows.length, sha256: sha256(rows.join("\n")) };
+		}
+		return { schema: sha256(canonicalJson(schema)), tables };
+	});
+
+// A D1 export rewritten for import into an empty database (SEGU-226). D1
+// always enforces foreign keys, and deferring them does not help a row whose
+// parent table does not exist yet: Wrangler's export of the global database
+// fills `memberships` before it creates `tenants`. So the verified replay is
+// written out again in a safe order: every table, then the rows with parents
+// before children (SQLite's own quote() writes each value), then indexes,
+// then triggers, so no trigger fires during the import.
+export const importSql = (sql: string) =>
+	replay(sql, (db) => {
+		const ident = (name: string) => `"${name.replaceAll('"', '""')}"`;
+		const schema = db
+			.prepare(
+				"SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY rowid",
+			)
+			.all()
+			.map((row) => ({ type: String(row.type), name: String(row.name), sql: String(row.sql) }));
+		const tables = schema.filter(({ type }) => type === "table").map(({ name }) => name);
+		const parents = new Map(
+			tables.map((table) => [
+				table,
+				db
+					.prepare(`PRAGMA foreign_key_list(${ident(table)})`)
+					.all()
+					.map((row) => String(row.table))
+					.filter((parent) => parent !== table && tables.includes(parent)),
+			]),
+		);
+		const ordered: string[] = [];
+		const visit = (table: string, path: string[]) => {
+			if (ordered.includes(table) || path.includes(table)) return;
+			for (const parent of parents.get(table) ?? []) visit(parent, [...path, table]);
+			ordered.push(table);
+		};
+		for (const table of tables) visit(table, []);
+		const lines = ["PRAGMA defer_foreign_keys=TRUE;"];
+		for (const { type, sql: definition } of schema) if (type === "table") lines.push(`${definition};`);
+		for (const table of ordered) {
+			const columns = db
+				.prepare(`PRAGMA table_info(${ident(table)})`)
+				.all()
+				.map((row) => String(row.name));
+			if (columns.length === 0) continue;
+			const values = columns.map((column) => `quote(${ident(column)})`).join(" || ',' || ");
+			const rows = db.prepare(`SELECT ${values} AS row FROM ${ident(table)}`).all();
+			for (const { row } of rows) {
+				lines.push(`INSERT INTO ${ident(table)} (${columns.map(ident).join(",")}) VALUES(${String(row)});`);
+			}
+		}
+		const sequence = db.prepare("SELECT name FROM sqlite_schema WHERE name = 'sqlite_sequence'").all();
+		if (sequence.length > 0) {
+			for (const { name, seq } of db.prepare("SELECT name, seq FROM sqlite_sequence").all()) {
+				lines.push(
+					`INSERT INTO sqlite_sequence (name, seq) VALUES(${db.prepare("SELECT quote(?) AS v").get(String(name))?.v}, ${Number(seq)});`,
+				);
+			}
+		}
+		for (const type of ["index", "trigger", "view"]) {
+			for (const entry of schema) if (entry.type === type) lines.push(`${entry.sql};`);
+		}
+		return `${lines.join("\n")}\n`;
+	});
+
+// Each table of a D1 export with its row count, after the same isolated replay.
+export const tableCounts = (sql: string) =>
+	replay(sql, (db) =>
+		db
+			.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND substr(name, 1, 7) != 'sqlite_' ORDER BY name")
+			.all()
+			.map((row) => {
+				const name = String(row.name);
+				const count = db.prepare(`SELECT count(*) AS rows FROM "${name.replaceAll('"', '""')}"`).get();
+				return { name, rows: Number(count?.rows ?? 0) };
+			}),
+	);
 
 // The key versions in a KV export, after checking every line is a ciphertext envelope.
 const readKv = (text: string) => {
@@ -240,7 +346,7 @@ export const verifyBackup = async (store: BackupStore, backupId: string) => {
 	);
 };
 
-const newestFirst = (a: BackupCatalogEntry, b: BackupCatalogEntry) =>
+export const newestFirst = (a: BackupCatalogEntry, b: BackupCatalogEntry) =>
 	a.created < b.created ? 1 : a.created > b.created ? -1 : 0;
 
 export const latestBackupId = async (store: BackupStore) =>

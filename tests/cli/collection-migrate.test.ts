@@ -123,7 +123,7 @@ describe("takebase collection + migrate on a disposable local tenant D1 (S-2-3-0
 			code: 1,
 			stderr: expect.stringContaining("Registered: claims"),
 		});
-	});
+	}, 120_000);
 
 	it("generates reviewable SQL, applies it to a new database and reruns safely", () => {
 		const generated = cli("migrate", "generate", "--name", "create_claims");

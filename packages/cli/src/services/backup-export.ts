@@ -25,7 +25,7 @@ import { parseEnvelope } from "./secret-envelopes.ts";
 
 const encoder = new TextEncoder();
 
-const withTemp = <T>(use: (dir: string) => T) => {
+export const withTemp = <T>(use: (dir: string) => T) => {
 	const dir = mkdtempSync(join(tmpdir(), "takebase-backup-"));
 	try {
 		return use(dir);
@@ -83,6 +83,12 @@ export const r2Store = (deps: RemoteDeps, project: ProjectConfig, environment: E
 					throw new CliError(`wrangler r2 object put ${key} failed:\n${outputTail(result.output)}`);
 				}
 			}),
+		delete: async (key) => {
+			const result = wrangler(deps, dir, environment, ["r2", "object", "delete", `${bucket}/${key}`, ...location]);
+			if (result.status !== 0 && !result.output.includes("The specified key does not exist")) {
+				throw new CliError(`wrangler r2 object delete ${key} failed:\n${outputTail(result.output)}`);
+			}
+		},
 	};
 };
 
@@ -116,7 +122,7 @@ export const createBucket = (deps: RemoteDeps, project: ProjectConfig, environme
 	return { bucket, created: result.status === 0 };
 };
 
-const worker = (dir: string, env: string | undefined, label: string): WorkerEnvironment => {
+export const worker = (dir: string, env: string | undefined, label: string): WorkerEnvironment => {
 	const found = workerEnvironment(dir, env);
 	const database = found?.d1[0];
 	if (!found || database === undefined) throw new CliError(`No D1 database for ${label} in ${dir}/wrangler.jsonc`);
@@ -124,7 +130,7 @@ const worker = (dir: string, env: string | undefined, label: string): WorkerEnvi
 };
 
 // The repository's migration files for a Worker's database, with checksums.
-const migrationFiles = (dir: string, config: WorkerEnvironment) => {
+export const migrationFiles = (dir: string, config: WorkerEnvironment) => {
 	const migrationsDir = resolve(dir, config.d1[0]?.migrations_dir ?? "migrations");
 	if (!existsSync(migrationsDir)) return [];
 	return readdirSync(migrationsDir)
@@ -176,6 +182,22 @@ const exportD1 = (
 		}
 		return new Uint8Array(readFileSync(output));
 	});
+
+// The current export of a source database, read only: "global" or a tenant id.
+export const exportD1Of = (
+	deps: RemoteDeps,
+	project: ProjectConfig,
+	environment: EnvironmentConfig,
+	target: string,
+) => {
+	const tenant = environment.tenants.find(({ id }) => id === target);
+	if (target !== "global" && tenant === undefined) throw new CliError(`Unknown tenant "${target}"`);
+	const dir = tenant === undefined ? project.workers.global : project.workers.tenant;
+	const env = tenant === undefined ? environment.globalEnv : tenant.env;
+	const state = join(dir, ".wrangler", tenant === undefined ? "state" : `state-${tenant.id}`);
+	const binding = (worker(dir, env, target).d1[0] as { binding: string }).binding;
+	return new TextDecoder().decode(exportD1(deps, environment, dir, env, binding, state));
+};
 
 const d1Part = (
 	deps: RemoteDeps,
@@ -294,7 +316,7 @@ const configPart = (project: ProjectConfig, environment: EnvironmentConfig): Cap
 export type BackupSelection = { scope: BackupScope; tenantId?: string };
 
 // Locally, the stack must be down: the copied SQLite files and KV are then quiescent.
-const refuseRunningStack = async (deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig) => {
+export const refuseRunningStack = async (deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig) => {
 	const urls = [
 		globalEndpoint(project, environment).url,
 		...environment.tenants.map(({ id }) => tenantEndpoint(project, environment, id).url),

@@ -77,8 +77,15 @@ export const localKeys = (project: ProjectConfig, environment: EnvironmentConfig
 };
 
 // `wrangler kv key <args>` on one tenant's SECRETS namespace; returns stdout.
+// `namespace` selects another one instead (a restore target, SEGU-226).
 const tenantKv =
-	(deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig, tenant: TenantConfig) =>
+	(
+		deps: RemoteDeps,
+		project: ProjectConfig,
+		environment: EnvironmentConfig,
+		tenant: TenantConfig,
+		namespace?: string[],
+	) =>
 	(args: string[]) => {
 		const location = environment.remote
 			? ["--remote"]
@@ -86,7 +93,7 @@ const tenantKv =
 		const result = deps.run(
 			project.workers.tenant,
 			"wrangler",
-			["kv", "key", ...args, "--binding", "SECRETS", "--env", tenant.env, ...location],
+			["kv", "key", ...args, ...(namespace ?? ["--binding", "SECRETS", "--env", tenant.env, ...location])],
 			cloudflareEnv(environment),
 		);
 		if (result.status !== 0) throw new CliError(`wrangler kv key ${args[0]} failed:\n${outputTail(result.output)}`);
@@ -110,8 +117,9 @@ export const wranglerStore = (
 	project: ProjectConfig,
 	environment: EnvironmentConfig,
 	tenant: TenantConfig,
+	namespace?: string[],
 ): EnvelopeStore & { entries: () => Promise<{ name: string; metadata: unknown }[]> } => {
-	const kv = tenantKv(deps, project, environment, tenant);
+	const kv = tenantKv(deps, project, environment, tenant, namespace);
 	return {
 		entries: async () => listSecretKeys(kv),
 		names: async () => listSecretKeys(kv).map((entry) => entry.name),
@@ -128,7 +136,7 @@ export const wranglerStore = (
 };
 
 // The keys this machine holds for a tenant, from the keys file.
-const keyRing = (keysFile: string, tenantId: string): KeyRing => {
+export const keyRing = (keysFile: string, tenantId: string): KeyRing => {
 	const imported = new Map<number, ReturnType<typeof importDataKey>>();
 	return (version) => {
 		const cached = imported.get(version);

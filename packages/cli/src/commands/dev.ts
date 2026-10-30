@@ -17,6 +17,7 @@ import { localKeyFile } from "../services/key-installation.ts";
 import { localKeys } from "../services/key-lifecycle.ts";
 import { applyMigrations } from "../services/migration-service.ts";
 import { provisionTenant } from "../services/provisioning.ts";
+import { listRestores } from "../services/restore-execution.ts";
 import { localTenantProvider, tenantPlan } from "../services/tenant-providers.ts";
 import { resolveTarget } from "../worker-target.ts";
 
@@ -26,7 +27,8 @@ import { resolveTarget } from "../worker-target.ts";
 // with the local provider, runs an optional seed command, then serves the
 // global Worker, each tenant Worker and the app until interrupted.
 
-const usage = "takebase dev [--env <name>] [--fresh] [--seed <command>]\n       takebase dev --stop [--env <name>]";
+const usage =
+	"takebase dev [--env <name>] [--fresh | --restored <tenant>] [--seed <command>]\n       takebase dev --stop [--env <name>]";
 
 const help = `Run the local stack: emulators, the global Worker, every tenant Worker and the app.
 
@@ -35,6 +37,9 @@ Usage: ${usage}
 Options:
   --env <name>      Local environment from takebase.jsonc (default: local)
   --fresh           Start every tenant's local D1 empty (removes .wrangler/state-<tenant>)
+  --restored <id>   Serve that tenant from its newest proved restore
+                    (\`takebase backup restore\`) instead of its own state; the
+                    tenant's own .wrangler/state-<tenant> is not touched
   --seed <command>  Shell command run after provisioning, before the Workers start
   --stop            Stop a running stack: every process listening on its ports
   -h, --help        Show this help
@@ -49,6 +54,7 @@ const options = {
 	env: { type: "string" },
 	fresh: { type: "boolean" },
 	seed: { type: "string" },
+	restored: { type: "string" },
 	stop: { type: "boolean" },
 	help: { type: "boolean", short: "h" },
 } as const;
@@ -84,6 +90,26 @@ const underEmulators = (project: ProjectConfig, environment: EnvironmentConfig, 
 	return supervise(child);
 };
 
+// The newest proved restore of a tenant (SEGU-226), served instead of its own state.
+const restoredState = (project: ProjectConfig, environment: EnvironmentConfig, tenantId: string) => {
+	if (!environment.tenants.some(({ id }) => id === tenantId)) {
+		throw new CliError(`Unknown tenant "${tenantId}" in environment "${environment.name}"`, { usage: true });
+	}
+	const proved = listRestores(project, environment.name).find(
+		(progress) =>
+			progress.step === "proved" &&
+			progress.target.kind === "tenant" &&
+			progress.target.tenantId === tenantId &&
+			existsSync(progress.database),
+	);
+	if (proved === undefined) {
+		throw new CliError(`No proved restore of tenant ${tenantId} in ${environment.name}`, {
+			hint: `Run \`takebase backup restore --latest --tenant ${tenantId} --confirm ${environment.name}\` first.`,
+		});
+	}
+	return { tenantId, state: proved.database };
+};
+
 const ready = async (url: string) => {
 	for (let attempt = 0; attempt < 120; attempt++) {
 		try {
@@ -100,8 +126,11 @@ const stack = async (
 	environment: EnvironmentConfig,
 	fresh: boolean,
 	seed?: string,
+	restored?: { tenantId: string; state: string },
 ) => {
-	const tenantState = (id: string) => join(project.workers.tenant, ".wrangler", `state-${id}`);
+	const tenantState = (id: string) =>
+		restored?.tenantId === id ? restored.state : join(project.workers.tenant, ".wrangler", `state-${id}`);
+	if (restored !== undefined) io.stdout(`tenant ${restored.tenantId}: served from the restore in ${restored.state}\n`);
 	if (fresh) for (const { id } of environment.tenants) rmSync(tenantState(id), { recursive: true, force: true });
 
 	const global = applyMigrations(
@@ -112,7 +141,7 @@ const stack = async (
 	);
 	for (const tenant of environment.tenants) {
 		const results = await provisionTenant(
-			localTenantProvider(project, environment, tenant),
+			localTenantProvider(project, environment, tenant, tenantState(tenant.id)),
 			await tenantPlan(project, environment, tenant),
 		);
 		const created = results.filter(({ outcome }) => outcome === "created").map(({ step }) => step);
@@ -356,6 +385,10 @@ export const devCommand = async (args: string[], io: CliIo) => {
 		}
 		return stopStack(io, project, environment);
 	}
+	if (values.restored !== undefined && values.fresh === true) {
+		throw new CliError("--restored and --fresh cannot be combined", { usage: true, hint: `Usage: ${usage}` });
+	}
+	const restored = values.restored === undefined ? undefined : restoredState(project, environment, values.restored);
 	if (!insideEmulators()) return underEmulators(project, environment, args);
-	return stack(io, project, environment, values.fresh === true, values.seed);
+	return stack(io, project, environment, values.fresh === true, values.seed, restored);
 };
