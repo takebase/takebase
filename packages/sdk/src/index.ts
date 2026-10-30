@@ -5,6 +5,7 @@ export type {
 	AdminInviteState,
 	AdminMember,
 	AdminRole,
+	BackupScope,
 	CollectionOperation,
 	CollectionRecord,
 	CreatedInvite,
@@ -24,15 +25,23 @@ export type {
 	ReadinessState,
 	RealtimeSession,
 	RecordBase,
+	SecretMetadata,
+	SecretsState,
 	SortField,
+	TenantBackup,
+	TenantBackupCheck,
+	TenantBackupPart,
 	TenantDiagnostics,
 	TenantMembership,
+	TenantRestorePlan,
 	TenantRole,
+	TenantSecretsReport,
 	TenantSummary,
 	UpdateInput,
 } from "@takebase/contracts";
 export type { TenantAdministration } from "./admin.ts";
 export type { AuthUser, FirebaseAuthLike } from "./auth.ts";
+export type { TenantBackupsClient } from "./backups.ts";
 export type { AdminClient, ClientOptions, SignOutReason, TakebaseClient } from "./client.ts";
 export { createClient } from "./client.ts";
 export type { CollectionClient } from "./collection.ts";
@@ -41,4 +50,5 @@ export type { ClientErrorCode, TakebaseErrorCode } from "./errors.ts";
 export { readResponse, TakebaseError } from "./errors.ts";
 export type { Fetch, RequestOptions } from "./http.ts";
 export type { RealtimeConnection, RealtimeConnector, RealtimeEvents, RealtimeOptions } from "./realtime.ts";
+export type { TenantSecretsClient } from "./secret-status.ts";
 export type { RealtimeEvent, SubscriptionCallback } from "./subscription.ts";

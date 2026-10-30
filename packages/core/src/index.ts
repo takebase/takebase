@@ -10,6 +10,8 @@ export type {
 	TenantMember,
 } from "./auth/membership.ts";
 export { AuthError, authenticateTenantMember, checkMembership } from "./auth/membership.ts";
+export type { BackupBucket } from "./backups/tenant-backups.ts";
+export { checkTenantBackup, isBackupId, listTenantBackups, planTenantRestore } from "./backups/tenant-backups.ts";
 export type { CollectionAdminRoutesOptions } from "./collections/admin-routes.ts";
 export { createCollectionAdminRoutes } from "./collections/admin-routes.ts";
 export { id, timestamps } from "./collections/columns.ts";
@@ -77,6 +79,8 @@ export type { SecretBinding, SecretErrorCode } from "./secrets/crypto.ts";
 export { SecretError } from "./secrets/crypto.ts";
 export type { DataKeys } from "./secrets/key-provider.ts";
 export { dataKeysFrom } from "./secrets/key-provider.ts";
+export type { SecretsRoutesOptions, SecretsStatusRequest } from "./secrets/routes.ts";
+export { createSecretsRoutes } from "./secrets/routes.ts";
 export {
 	AdminError,
 	actorOf,

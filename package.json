@@ -19,6 +19,7 @@
 		"smoke:backups": "bash tests/smoke/backups.sh",
 		"test:e2e": "playwright test",
 		"e2e:admin": "playwright test tests/e2e/admin-core.spec.ts",
+		"e2e:admin:recovery": "playwright test tests/e2e/admin-recovery.spec.ts",
 		"journey:admin": "node tests/fixtures/admin-journey.ts",
 		"journey:wire": "node tests/fixtures/wire-journey.ts",
 		"journey:secrets": "node tests/fixtures/secrets-journey.ts",

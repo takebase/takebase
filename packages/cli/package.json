@@ -21,6 +21,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {
+		"@takebase/contracts": "workspace:*",
 		"@types/node": "^26.6.5"
 	}
 }

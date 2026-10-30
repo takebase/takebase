@@ -37,13 +37,14 @@ export const withTemp = <T>(use: (dir: string) => T) => {
 const wrangler = (deps: RemoteDeps, dir: string, environment: EnvironmentConfig, args: string[]) =>
 	deps.run(dir, "wrangler", args, cloudflareEnv(environment));
 
-// The environment's backup bucket in R2: local (persisted beside the global
-// Worker's state) or remote. Objects pass through mode-600 temporary files.
+// The environment's backup bucket in R2: local (persisted in the global
+// Worker's own .wrangler/state, where `takebase dev` serves it to the Worker's
+// BACKUPS binding) or remote. Objects pass through mode-600 temporary files.
 export const r2Store = (deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig): BackupStore => {
 	const bucket = backupBucketOf(environment);
 	const location = environment.remote
 		? ["--remote"]
-		: ["--local", "--persist-to", join(project.workers.global, ".wrangler", "state-backups")];
+		: ["--local", "--persist-to", join(project.workers.global, ".wrangler", "state")];
 	const dir = project.workers.global;
 	return {
 		get: async (key) =>

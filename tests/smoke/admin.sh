@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Local acceptance smoke of the SEGU-222 admin (Wave 5-4): static checks
 # (including the admin's svelte-check and its static build to public/), the
-# S-5-4-01 journey in a browser (pnpm e2e:admin), and the stack's health with
-# the admin served on :5174. The security details live in the automated tests.
+# S-5-4-01 and S-6-5-01 journeys in a browser (pnpm e2e:admin and
+# e2e:admin:recovery), and the stack's health with the admin served on :5174. The security details live in the automated tests.
 #
 #   pnpm smoke:admin            static checks, the journey, then the local stack
 #   pnpm smoke:admin --quick    skip lint, typecheck and pnpm test
@@ -33,9 +33,24 @@ if [ "${1:-}" != "--quick" ]; then
 	check "admin static build" 0 'Wrote site to "../../public"'
 fi
 
+section "Local data keys"
+for tenant in tenant-a tenant-b; do
+	upper="$(printf '%s' "$tenant" | tr 'a-z-' 'A-Z_')"
+	if grep -q "^DATA_KEY_V[0-9]*_${upper}=" "$ROOT/ops/.local.env" 2>/dev/null; then
+		pass "$tenant already has a local data key"
+	else
+		run $CLI secrets init "$tenant"
+		check "takebase secrets init $tenant" 0 "the key is never printed"
+	fi
+done
+
 section "S-5-4-01 journey (Playwright starts its own stack)"
 run pnpm e2e:admin
 check "pnpm e2e:admin" 0 "2 passed"
+
+section "S-6-5-01 journey (Playwright starts its own stack)"
+run pnpm e2e:admin:recovery
+check "pnpm e2e:admin:recovery" 0 "2 passed"
 # Frees anything Playwright's stack left on the ports before the next start.
 (cd "$ROOT" && pnpm dev:stack:stop >/dev/null 2>&1)
 

@@ -9,6 +9,21 @@ export type {
 } from "./administration.ts";
 export { isInviteRedemption } from "./administration.ts";
 export type {
+	BackupCatalog,
+	BackupCatalogEntry,
+	BackupManifest,
+	BackupMigration,
+	BackupObject,
+	BackupPart,
+	BackupPruning,
+	BackupScope,
+	TenantBackup,
+	TenantBackupCheck,
+	TenantBackupList,
+	TenantBackupPart,
+	TenantRestorePlan,
+} from "./backups.ts";
+export type {
 	AdminCollection,
 	AdminCollectionField,
 	AdminCollectionList,
@@ -44,6 +59,7 @@ export type {
 export type { ErrorBody, ErrorCode, ErrorEnvelope, FieldErrors } from "./errors.ts";
 export { errorCodes, errorStatus, isErrorCode, isErrorEnvelope } from "./errors.ts";
 export type { RealtimeSession, RecordChangeEvent, RecordChangeOperation } from "./realtime.ts";
+export type { TenantSecretsReport } from "./secret-status.ts";
 export type { SecretEnvelope, SecretMetadata, SecretsState } from "./secrets.ts";
 export type { TenantListResponse, TenantMembership, TenantRole, TenantSummary } from "./tenants.ts";
 export { isTenantListResponse } from "./tenants.ts";

@@ -165,12 +165,22 @@ Commands verified in Wave 6-2 (SEGU-224), with the same tool versions:
 Commands verified in Wave 6-3 (SEGU-225), with the same tool versions:
 - Locally:
   - `pnpm smoke:backups` (18 steps, including the S-6-3-01 journey). Run it with no stack up: it starts and stops `pnpm dev:stack` itself, because local backups refuse a running stack.
-  - `takebase backup create --tenant <id> | --global | --all`, `backup list` and `backup verify <id> | --latest`, plus `pnpm journey:backups`. Local R2 lives in `examples/workers/global/.wrangler/state-backups`.
+  - `takebase backup create --tenant <id> | --global | --all`, `backup list` and `backup verify <id> | --latest`, plus `pnpm journey:backups`. Local R2 lives in `examples/workers/global/.wrangler/state` since SEGU-227, where the global Worker's `BACKUPS` binding reads it.
   - `wrangler d1 export --local` has no `--persist-to`: the CLI copies `.wrangler/state-<tenant>` into a temporary directory with the Worker's `wrangler.jsonc`. Wrangler 4.151 has no `r2 object list`, so backups are found through `backups/catalog.json`.
 - Against approved staging:
   - `pnpm staging:backup:init`, which created the private bucket `takebase-staging-backups` (no public access or r2.dev URL) on 2026-10-29.
   - `pnpm staging:backup:create:all`, `staging:backup:list`, `staging:backup:verify` (`--latest`) and `staging:journey:backups`. The journey damages the newest backup and puts its bytes back, so it verifies again afterwards.
   - The secrets file also holds public values (e.g. `FIREBASE_PROJECT_ID`, which is in `takebase.jsonc`); the journey's leak check skips values that are public in `takebase.jsonc`.
+
+Commands verified in Wave 6-5 (SEGU-227), with the same tool versions:
+- Locally:
+  - `pnpm smoke:admin` now also creates missing local data keys and runs the S-6-5-01 journey. Run it with no stack up and nothing else on port 8787: a `wrangler dev` of another project takes that default port, and the CLI then reports "The local stack is running".
+  - `pnpm e2e:admin:recovery` is the S-6-5-01 journey. It writes disposable fixture backups to local R2 while the stack runs, through the CLI's commit path, and removes them. It needs a local data key (`takebase secrets init`).
+  - The admin's Secrets and Backups pages only read. Rotation, restore and prune stay operator commands the pages show but never run.
+- Against approved staging:
+  - `pnpm staging:deploy:plan`, `pnpm staging:deploy` and `pnpm staging:health`. The global Worker now binds `takebase-staging-backups`, read only by code type and tests.
+  - `pnpm staging:e2e` now includes `staging-admin-recovery.spec.ts`, which only reads: `probe` verifies the newest backup and reviews its restore, and `alice` is refused. The sandbox blocks Chromium's outbound network.
+  - `pnpm staging:seed` raises a tenant's access revision. Use it when `POST /api/realtime/session` answers 503 with `realtime.grant_failed` because a revocation in Firebase is ahead of global D1. It also clears both tenants' collection signals.
 
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 

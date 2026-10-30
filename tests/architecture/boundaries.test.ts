@@ -127,6 +127,20 @@ describe("runtime boundaries", () => {
 		}
 	});
 
+	// D1 exports are plaintext SQL and a binding cannot be limited to one tenant's
+	// objects, so only the global Worker may reach the backup bucket (SEGU-227).
+	it("only the global Worker binds the backup bucket", () => {
+		for (const env of [...tenantEnvs(false), ...tenantEnvs(true)]) {
+			expect((env as Record<string, unknown>).r2_buckets).toBeUndefined();
+		}
+		expect((global as Record<string, unknown>).r2_buckets).toEqual([
+			{ binding: "BACKUPS", bucket_name: "takebase-local-backups" },
+		]);
+		expect((globalStaging as Record<string, unknown>).r2_buckets).toEqual([
+			{ binding: "BACKUPS", bucket_name: "takebase-staging-backups" },
+		]);
+	});
+
 	it("the frontend is static assets plus SvelteKit only, with no data bindings", () => {
 		expect(frontend.assets?.directory).toBe(".svelte-kit/cloudflare");
 		for (const env of [frontend, ...Object.values(frontend.env ?? {})] as Record<string, unknown>[]) {

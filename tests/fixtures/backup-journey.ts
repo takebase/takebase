@@ -51,7 +51,7 @@ const forbidden = () => {
 const deleteObject = (key: string) => {
 	const location = environment.remote
 		? ["--remote"]
-		: ["--local", "--persist-to", `${project.workers.global}/.wrangler/state-backups`];
+		: ["--local", "--persist-to", `${project.workers.global}/.wrangler/state`];
 	const result = defaultRemoteDeps.run(
 		project.workers.global,
 		"wrangler",

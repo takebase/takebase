@@ -1,5 +1,11 @@
-import type { MemberRemoval } from "@takebase/contracts";
-import { actorOf, createAdministrationService } from "@takebase/core";
+import type { MemberRemoval, TenantBackupList } from "@takebase/contracts";
+import {
+	actorOf,
+	checkTenantBackup,
+	createAdministrationService,
+	listTenantBackups,
+	planTenantRestore,
+} from "@takebase/core";
 import { type Context, Hono } from "hono";
 import { requestLocals, useContext } from "../request-store.ts";
 import { fail, handled, jsonBody, unauthenticated, verifiedCaller } from "./caller.ts";
@@ -101,5 +107,55 @@ adminRoutes.delete(
 	handled(async (c) => {
 		await service().revokeInvite(actor(), tenantOf(c), c.req.param("id") ?? "");
 		return c.json({ revoked: c.req.param("id") });
+	}),
+);
+
+// ---- backups (SEGU-227) -------------------------------------------------------
+// Read-only: this tenant's backups, described from their manifests, and an
+// integrity check of this tenant's objects. A backup that does not hold this
+// tenant answers 404 like an unknown one. Restore and prune stay with the
+// operator's CLI.
+
+const backupBucket = (c: Context) => {
+	const { backups } = useContext();
+	return backups ?? fail(c, "unavailable", "No backup bucket is bound to this Worker");
+};
+
+adminRoutes.get(
+	"/:tenantId/backups",
+	handled(async (c) => {
+		const bucket = backupBucket(c);
+		if (bucket instanceof Response) return bucket;
+		const body: TenantBackupList = { backups: await listTenantBackups(bucket, tenantOf(c)) };
+		return c.json(body);
+	}),
+);
+
+adminRoutes.post(
+	"/:tenantId/backups/:backupId/verify",
+	handled(async (c) => {
+		const bucket = backupBucket(c);
+		if (bucket instanceof Response) return bucket;
+		const check = await checkTenantBackup(bucket, c.req.param("backupId") ?? "", tenantOf(c));
+		if (check === null) return fail(c, "not_found", "No such backup for this tenant");
+		useContext().log.info("backup.verify", {
+			actor: actor(),
+			tenantId: tenantOf(c),
+			backupId: check.backupId,
+			status: check.status,
+		});
+		return c.json(check);
+	}),
+);
+
+// A review only: it creates nothing, and no route restores or prunes.
+adminRoutes.get(
+	"/:tenantId/backups/:backupId/restore-plan",
+	handled(async (c) => {
+		const bucket = backupBucket(c);
+		if (bucket instanceof Response) return bucket;
+		const plan = await planTenantRestore(bucket, c.req.param("backupId") ?? "", tenantOf(c));
+		if (plan === null) return fail(c, "not_found", "No such backup for this tenant");
+		return c.json(plan);
 	}),
 );

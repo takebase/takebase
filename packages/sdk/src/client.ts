@@ -1,11 +1,13 @@
 import type { InviteRedemption, TenantMembership } from "@takebase/contracts";
 import { createTenantAdministration, type TenantAdministration } from "./admin.ts";
 import { type FirebaseAuthLike, safeBaseUrl, tokenSource } from "./auth.ts";
+import { createBackupsClient, type TenantBackupsClient } from "./backups.ts";
 import { type CollectionClient, createCollectionClient } from "./collection.ts";
 import { createDiagnosticsClient, type TenantDiagnosticsClient } from "./diagnostics.ts";
 import { TakebaseError } from "./errors.ts";
 import { createHttp, type Fetch, type Http, type RequestOptions } from "./http.ts";
 import { createTenantRealtime, type RealtimeOptions, type TenantRealtime } from "./realtime.ts";
+import { createSecretsClient, type TenantSecretsClient } from "./secret-status.ts";
 import type { SubscriptionCallback } from "./subscription.ts";
 import { fetchTenants, redeemInvite } from "./tenant.ts";
 
@@ -54,7 +56,7 @@ export type TakebaseClient = {
 	close: () => void;
 };
 
-export type AdminClient = TenantAdministration & TenantDiagnosticsClient;
+export type AdminClient = TenantAdministration & TenantDiagnosticsClient & TenantSecretsClient & TenantBackupsClient;
 
 type Selection = { membership: TenantMembership; http: Http; generation: number; realtime: TenantRealtime | null };
 
@@ -130,9 +132,13 @@ export const createClient = ({
 	const admin = (): AdminClient => {
 		const { bound, guard, http } = bind("administration");
 		const tenantGlobal = guard(global);
+		const diagnostics = createDiagnosticsClient(tenantGlobal, http);
+		const secrets = createSecretsClient(http);
 		return {
 			...createTenantAdministration(tenantGlobal, http, bound.membership.tenant.id),
-			...createDiagnosticsClient(tenantGlobal, http),
+			...diagnostics,
+			...secrets,
+			...createBackupsClient(tenantGlobal, bound.membership.tenant.id, { ...diagnostics, ...secrets }),
 		};
 	};
 
