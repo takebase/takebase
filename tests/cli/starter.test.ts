@@ -97,13 +97,6 @@ describe("takebase help", () => {
 		expect(cli("create", "--help").stdout).toContain("Usage: takebase create <dir>");
 	});
 
-	it("reports planned commands as not implemented instead of pretending", () => {
-		const { code, stderr } = cli("backup", "restore");
-		expect(code).toBe(1);
-		expect(stderr).toContain("`takebase backup restore` is planned but not implemented yet");
-		expect(stderr).toContain("takebase backup --help");
-	});
-
 	it("rejects unknown commands and options with actionable errors", () => {
 		expect(cli("frobnicate")).toMatchObject({ code: 2, stderr: expect.stringContaining("takebase --help") });
 		const unknownOption = cli("create", "app", "--template", "remote");
@@ -118,7 +111,7 @@ describe("takebase help", () => {
 	it("runs as an executable with Node", () => {
 		const help = spawnSync(process.execPath, [bin, "--help"], { encoding: "utf8" });
 		expect(help.status).toBe(0);
-		expect(help.stdout).toContain("Planned (not implemented yet):");
+		expect(help.stdout).toContain("Commands:");
 		const planned = spawnSync(process.execPath, [bin, "migrate", "apply"], { encoding: "utf8" });
 		expect(planned.status).toBe(1);
 	});

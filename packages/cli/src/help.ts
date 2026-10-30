@@ -20,10 +20,7 @@ Usage: takebase <command> [options]
 
 Commands:
 ${rows("implemented")}
-
-Planned (not implemented yet):
-${rows("planned")}
-
+${rows("planned") === "" ? "" : `\nPlanned (not implemented yet):\n${rows("planned")}\n`}
 Options:
   -h, --help     Show this help
   -v, --version  Show the CLI version

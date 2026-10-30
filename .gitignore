@@ -38,3 +38,5 @@ node_modules/
 /ops/.rotation/
 # The simulated local key escrow (`escrowDir` in takebase.jsonc)
 /ops/.escrow/
+# Restore progress (`takebase backup restore`): names, steps, counts and digests only
+/ops/.restores/

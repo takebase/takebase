@@ -117,7 +117,7 @@ node packages/cli/src/bin.ts init            # starter in the current directory
 | `migrate` | Generate, inspect and apply local D1 migrations | Implemented (local only) |
 | `wire` | Inspect notification delivery, test it, retry dead events | Implemented (operator) |
 | `secrets` | Initialize, check and inspect encrypted tenant secrets (rotation and revocation planned) | Implemented (operator) |
-| `backup` | Create, list and verify versioned R2 backups (restore and prune planned) | Implemented (operator) |
+| `backup` | Create, list, verify, restore (isolated) and prune versioned R2 backups | Implemented (operator) |
 | `health` | Liveness and readiness of every Worker and the app | Implemented (read-only) |
 | `logs` | Live, redacted request and error logs of a deployed Worker | Implemented (remote, read-only) |
 
@@ -217,10 +217,14 @@ pnpm journey:secrets    # the journey alone, against a running `pnpm dev:stack`
 ### Backups
 
 ```sh
-pnpm smoke:backups                 # local acceptance: checks, then the S-6-3-01 backup journey
+pnpm smoke:backups                 # local acceptance: checks, the S-6-3-01 backup and S-6-4-01 restore journeys
 takebase backup create --all       # or --tenant <id> | --global; [--env <name>]
 takebase backup list               # newest first, each verified again now
 takebase backup verify --latest    # or a backup id
+takebase backup restore --latest --tenant tenant-a --dry-run   # or a backup id; or --global
+takebase backup restore --latest --tenant tenant-a --confirm local
+takebase backup restore --discard <restore-id> --confirm local
+takebase backup prune --keep 3 --plan                          # then --confirm <env>
 ```
 
 - **What a backup holds:**
@@ -240,7 +244,19 @@ takebase backup verify --latest    # or a backup id
   - data keys, the keys and secrets files, passwords, API keys and account IDs. A restore needs the key versions the manifest lists, from the keys file or the escrow, so keep the escrow separately;
   - Firebase Auth users: export them with Firebase's own tools;
   - Realtime Database notifications, which are ephemeral triggers rebuilt from D1.
-- **Restore order:** Wrangler exports tables in creation order. The global export lists `memberships` before the `tenants` table a later migration recreated, so a restore must defer or reorder foreign keys. Restore and prune are planned.
+- **Restore:** `takebase backup restore` recovers one tenant or the global database into a new, isolated D1 database (and, for a tenant, KV namespace): `<namePrefix>restore-<backup id>-<target>` remotely, `.wrangler/restore-<…>` beside the Worker locally. It never writes to the source database, namespace or backup. Every check runs first, and any failure blocks the restore before anything is created:
+  - the backup verifies and belongs to this environment;
+  - the tenant's Wrangler environment, `TENANT_ID` and `TAKEBASE_ENV` still match;
+  - its migrations are the repository's first ones, file for file;
+  - every data key version its secrets need is in the keys file and opens them (a key only the escrow holds must be recovered first with `takebase secrets recover`; a restore never recovers keys);
+  - the isolated target does not exist yet.
+
+  `--dry-run` stops there. `--confirm <env>` creates the target (remotely with `--update-config=false`), imports the database and puts the ciphertext secrets, then proves the result, never from row counts alone: the restored database, exported again, has the backup's schema and the same rows in every table, and every restored envelope equals the backup's and opens with the tenant's key.
+  - **Import order:** the export is not imported as it is. D1 enforces foreign keys, and the global export fills `memberships` before it creates `tenants`. The verified replay is written out again: tables, then rows with parents first, then indexes, then triggers, so no trigger (e.g. `access_revision`) fires during the import.
+  - **Resuming:** progress is recorded in `ops/.restores/<env>-<restore id>.json` (untracked; names, steps, counts only). Running the same command again continues an interrupted restore. An interrupted D1 import is redone only while the target has no tables; otherwise the restore stops and `takebase backup restore --discard <restore id> --confirm <env>` removes the half-made target.
+  - **Using a restore:** locally, `takebase dev --restored <tenant>` (`pnpm dev:stack:restored`) serves the tenant from its newest proved restore instead of its own state. Promoting a restore to replace live data is not a command: it is a separate, explicit operator decision.
+  - Firebase Auth users and Realtime Database state are not restored; data keys come from the keys file or the escrow.
+- **Prune:** `takebase backup prune --keep <n> (--plan | --confirm <env>)` keeps, per subject (`all`, `global`, each tenant), the newest `n` verified backups, always the newest verified one, and any backup a recorded restore refers to; FAILED backups never count as kept. The catalog entry is removed first and the objects after it (tracked under `pruning` in the catalog until deleted), so an interrupted prune never leaves the catalog listing a backup whose objects are gone; the next prune finishes it.
 
 ### Dev, build and deploy
 

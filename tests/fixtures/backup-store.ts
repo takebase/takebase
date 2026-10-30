@@ -9,6 +9,9 @@ export const memoryStore = () => {
 		put: async (key, bytes) => {
 			objects.set(key, new Uint8Array(bytes));
 		},
+		delete: async (key) => {
+			objects.delete(key);
+		},
 	};
 	return { objects, store };
 };

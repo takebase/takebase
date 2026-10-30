@@ -56,9 +56,13 @@ export type BackupManifest = {
 
 export type BackupCatalogEntry = { backupId: string; created: string; scope: BackupScope; manifestSha256: string };
 
+// A backup being pruned (SEGU-226): already out of `backups`, its objects
+// still to delete. A rerun of prune finishes it.
+export type BackupPruning = { backupId: string; keys: string[] };
+
 // `backups/catalog.json`: Wrangler cannot list R2 objects, so the catalog is
 // how backups are found. It never holds a verification result.
-export type BackupCatalog = { version: 1; backups: BackupCatalogEntry[] };
+export type BackupCatalog = { version: 1; backups: BackupCatalogEntry[]; pruning?: BackupPruning[] };
 
 export const catalogKey = "backups/catalog.json";
 export const backupPrefix = (backupId: string) => `backups/${backupId}/`;
@@ -153,6 +157,12 @@ const isCatalogEntry = (value: unknown): value is BackupCatalogEntry =>
 	isRecord(value) &&
 	["backupId", "created", "scope", "manifestSha256"].every((field) => typeof value[field] === "string");
 
+const isPruning = (value: unknown): value is BackupPruning =>
+	isRecord(value) &&
+	typeof value.backupId === "string" &&
+	Array.isArray(value.keys) &&
+	value.keys.every((key) => typeof key === "string");
+
 export const parseCatalog = (text: string | null): BackupCatalog => {
 	if (text === null) return { version: 1, backups: [] };
 	let value: unknown;
@@ -165,7 +175,8 @@ export const parseCatalog = (text: string | null): BackupCatalog => {
 		!isRecord(value) ||
 		value.version !== 1 ||
 		!Array.isArray(value.backups) ||
-		!value.backups.every(isCatalogEntry)
+		!value.backups.every(isCatalogEntry) ||
+		(value.pruning !== undefined && (!Array.isArray(value.pruning) || !value.pruning.every(isPruning)))
 	) {
 		throw new CliError(`${catalogKey} is not a backup catalog`, {
 			hint: "Nothing was changed. Inspect the object in the bucket before writing another backup.",

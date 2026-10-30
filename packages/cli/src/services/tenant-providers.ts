@@ -129,6 +129,8 @@ export const localTenantProvider = (
 	project: ProjectConfig,
 	environment: EnvironmentConfig,
 	tenant: TenantConfig,
+	// The tenant's local state directory; `takebase dev --restored` passes a restore's.
+	state = join(project.workers.tenant, ".wrangler", `state-${tenant.id}`),
 ): TenantProvider => {
 	const auth = process.env.FIREBASE_AUTH_EMULATOR_HOST;
 	const database = process.env.FIREBASE_DATABASE_EMULATOR_HOST;
@@ -160,7 +162,7 @@ export const localTenantProvider = (
 		resolveTarget(project.root, {
 			worker: project.workers.tenant,
 			env: tenant.env,
-			"persist-to": join(project.workers.tenant, ".wrangler", `state-${tenant.id}`),
+			"persist-to": state,
 		});
 	const tenantQuery = (sql: string) => {
 		const result = runTool(project.workers.tenant, "wrangler", [
