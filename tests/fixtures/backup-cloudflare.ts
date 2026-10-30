@@ -21,7 +21,12 @@ export const exportSql = (migrations: string[], table: string) =>
 	[
 		"PRAGMA defer_foreign_keys=TRUE;",
 		'CREATE TABLE IF NOT EXISTS "d1_migrations"(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL);',
-		...migrations.map((name, i) => `INSERT INTO "d1_migrations" ("id","name") VALUES(${i + 1},'${name}');`),
+		// Literal applied_at, as wrangler d1 export writes it: a defaulted
+		// CURRENT_TIMESTAMP would differ between two replays a second apart.
+		...migrations.map(
+			(name, i) =>
+				`INSERT INTO "d1_migrations" ("id","name","applied_at") VALUES(${i + 1},'${name}','2026-10-28 12:00:00');`,
+		),
 		`CREATE TABLE \`${table}\` (\`id\` text PRIMARY KEY NOT NULL);`,
 		`INSERT INTO "${table}" ("id") VALUES('row-1');`,
 		`CREATE TRIGGER \`${table}_no_delete\` BEFORE DELETE ON \`${table}\` BEGIN SELECT RAISE(ABORT, 'no'); END;`,
