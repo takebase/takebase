@@ -180,7 +180,7 @@ const createTarget = (
 };
 
 const userTables =
-	"SELECT count(*) AS tables FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations'";
+	"SELECT count(*) AS tables FROM sqlite_schema WHERE type = 'table' AND substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_'";
 
 export type RestoreReport = (line: string) => void;
 
@@ -412,6 +412,20 @@ export const discardRestore = (
 	}
 	if (environment.remote) {
 		const run = (args: string[]) => deps.run(project.workers.global, "wrangler", args, cloudflareEnv(environment));
+		if (progress.namespaceId !== null) {
+			// The recorded id must still name the recorded restore namespace, never another one.
+			const listed = listRemote(deps, project, environment, ["kv", "namespace", "list"]).find(
+				(ns) => ns.id === progress.namespaceId,
+			);
+			if (listed !== undefined && listed.title !== progress.namespace) {
+				throw new CliError(
+					`Refusing to discard KV namespace ${progress.namespaceId}: it is "${String(listed.title)}"`,
+					{
+						hint: "The progress record does not match the account. Nothing was changed.",
+					},
+				);
+			}
+		}
 		if (progress.namespaceId !== null) {
 			const result = run(["kv", "namespace", "delete", "--namespace-id", progress.namespaceId, "--skip-confirmation"]);
 			if (result.status !== 0 && !/not found|10013/i.test(result.output))

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { backupCommand } from "../../packages/cli/src/commands/backup.ts";
 import { catalogKey, parseCatalog } from "../../packages/cli/src/services/backup-manifest.ts";
 import { executePrune, planPrune } from "../../packages/cli/src/services/backup-prune.ts";

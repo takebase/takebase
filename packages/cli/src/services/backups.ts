@@ -151,7 +151,7 @@ export const contentDigest = (sql: string) =>
 	replay(sql, (db) => {
 		const schema = db
 			.prepare(
-				"SELECT type, name, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type, name",
+				"SELECT type, name, sql FROM sqlite_schema WHERE substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY type, name",
 			)
 			.all();
 		const tables: Record<string, { rows: number; sha256: string }> = {};
@@ -179,7 +179,7 @@ export const importSql = (sql: string) =>
 		const ident = (name: string) => `"${name.replaceAll('"', '""')}"`;
 		const schema = db
 			.prepare(
-				"SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY rowid",
+				"SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND substr(name, 1, 7) != 'sqlite_' AND substr(name, 1, 4) != '_cf_' ORDER BY rowid",
 			)
 			.all()
 			.map((row) => ({ type: String(row.type), name: String(row.name), sql: String(row.sql) }));
@@ -233,7 +233,7 @@ export const importSql = (sql: string) =>
 export const tableCounts = (sql: string) =>
 	replay(sql, (db) =>
 		db
-			.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+			.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND substr(name, 1, 7) != 'sqlite_' ORDER BY name")
 			.all()
 			.map((row) => {
 				const name = String(row.name);

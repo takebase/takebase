@@ -244,7 +244,7 @@ describe("takebase backup restore --confirm (R-6-4-01, S-6-4-01)", () => {
 	});
 
 	it("reports a half-imported target instead of importing again, and --discard removes only it", async () => {
-		const { cf, backupId, command } = await backedUp();
+		const { cf, backupId, command, existing } = await backedUp();
 		const restoreId = `${backupId.toLowerCase()}-tenant-a`;
 		const name = `takebase-staging-restore-${restoreId}`;
 		cf.faults.import = "partial";
@@ -262,10 +262,19 @@ describe("takebase backup restore --confirm (R-6-4-01, S-6-4-01)", () => {
 		const path = join(root, "ops", ".restores", `staging-${restoreId}.json`);
 		const first = await command("restore", backupId, "--tenant", "tenant-a", "--confirm", "staging");
 		expect(first.code, first.text).toBe(0);
-		writeFileSync(path, readFileSync(path, "utf8").replaceAll(name, "takebase-staging-tenant-a"));
+		const proved = readFileSync(path, "utf8");
+		writeFileSync(path, proved.replaceAll(name, "takebase-staging-tenant-a"));
 		const refused = await command("restore", "--discard", restoreId, "--confirm", "staging");
 		expect(refused.text).toContain("not a restore target");
-		expect(refused.calls.filter(({ args }) => args.includes("delete"))).toEqual([]);
+		// ... and so is a record whose namespace id is another namespace's.
+		existing.push("takebase-staging-tenant-a-secrets");
+		writeFileSync(
+			path,
+			proved.replace(/"namespaceId": "[^"]*"/, '"namespaceId": "id-takebase-staging-tenant-a-secrets"'),
+		);
+		const wrongId = await command("restore", "--discard", restoreId, "--confirm", "staging");
+		expect(wrongId.text).toContain('it is "takebase-staging-tenant-a-secrets"');
+		expect([...refused.calls, ...wrongId.calls].filter(({ args }) => args.includes("delete"))).toEqual([]);
 	});
 
 	it("does not call a restore proved when a value differs, even with equal row counts", async () => {
@@ -289,6 +298,9 @@ describe("the import order of a restored database", () => {
 			'INSERT INTO "memberships" ("id","tenant_id") VALUES(\'m1\',\'t1\');',
 			"CREATE TABLE `tenants` (`id` text PRIMARY KEY NOT NULL, `name` text, `access_revision` integer DEFAULT 0 NOT NULL, `logo` blob);",
 			'INSERT INTO "tenants" ("id","name","access_revision","logo") VALUES(\'t1\',\'O\'\'Brien; Ltd\',7,X\'00ff\');',
+			// `_` is a LIKE wildcard: a name like this must not be taken for a `_cf_` table.
+			"CREATE TABLE `xcf_notes` (`id` text PRIMARY KEY NOT NULL);",
+			'INSERT INTO "xcf_notes" ("id") VALUES(\'n1\');',
 			"CREATE TRIGGER `bump` AFTER INSERT ON `memberships` BEGIN UPDATE `tenants` SET `access_revision` = `access_revision` + 1 WHERE `id` = NEW.`tenant_id`; END;",
 		].join("\n");
 		const enforcing = () => new DatabaseSync(":memory:", { enableForeignKeyConstraints: true });
@@ -299,6 +311,7 @@ describe("the import order of a restored database", () => {
 		db.exec(importSql(exported));
 		expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 		expect(db.prepare("SELECT access_revision FROM tenants").get()?.access_revision).toBe(7);
+		expect(db.prepare("SELECT id FROM xcf_notes").get()?.id).toBe("n1");
 		db.close();
 		expect(contentDigest(importSql(exported))).toEqual(contentDigest(exported));
 	});
