@@ -17,6 +17,8 @@ import {
 export type AppContext = {
 	service: "tenant";
 	tenantId: string;
+	// TAKEBASE_ENV: the environment this deployment belongs to, or null when unset.
+	environment: string | null;
 	db: D1Database;
 	// The global Worker's MembershipEntrypoint, reached over the GLOBAL service binding.
 	membership: MembershipVerifier;
@@ -76,6 +78,7 @@ export const createContext = (
 	return {
 		service: "tenant",
 		tenantId: env.TENANT_ID,
+		environment: env.TAKEBASE_ENV || null,
 		db: env.DB,
 		membership: env.GLOBAL as unknown as MembershipVerifier,
 		revocations: env.GLOBAL as unknown as RevocationSource,

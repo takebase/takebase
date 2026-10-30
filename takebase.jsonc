@@ -26,7 +26,8 @@
 			// every data key is deposited there first; untracked, mode 700.
 			"escrowDir": "ops/.escrow/local",
 			// `takebase backup` (SEGU-225) writes to this bucket in local R2, persisted in
-			// the global Worker's git-ignored .wrangler/state-backups.
+			// the global Worker's git-ignored .wrangler/state, where its BACKUPS binding
+			// reads it (SEGU-227).
 			"backupBucket": "takebase-local-backups",
 			// `takebase dev` serves the global Worker, the app and the admin here, each tenant on its own port.
 			"globalPort": 8787,

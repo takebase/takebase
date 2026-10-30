@@ -1,4 +1,5 @@
 import {
+	type BackupBucket,
 	createLogger,
 	firebaseProvider,
 	firebaseSettings,
@@ -11,6 +12,9 @@ import {
 export type AppContext = {
 	service: "global";
 	db: D1Database;
+	// The environment's backup bucket (SEGU-227), read-only by type: tenant
+	// admins see their own tenant's backups. Null without a BACKUPS binding.
+	backups: BackupBucket | null;
 	// The identity adapter that verifies bearer tokens (Firebase).
 	identity: IdentityProvider;
 	clientIp: string | null;
@@ -27,6 +31,7 @@ export const createContext = (env: CloudflareBindings, request?: Request): AppCo
 	return {
 		service: "global",
 		db: env.DB,
+		backups: env.BACKUPS ?? null,
 		identity: firebaseProvider(firebaseSettings(env)),
 		clientIp: request?.headers.get("cf-connecting-ip") ?? null,
 		requestId,

@@ -19,8 +19,8 @@
 # Starts `pnpm dev:stack` itself (one terminal is enough) to seed the local
 # databases, and stops it before backing up: local backups refuse a running
 # stack. Creates the local data keys only when the keys file has none.
-# Backups live in examples/workers/global/.wrangler/state-backups (local R2,
-# git-ignored); the run ends by pruning them to the newest verified one per
+# Backups live in examples/workers/global/.wrangler/state (local R2 beside the
+# global Worker's D1, git-ignored); the run ends by pruning them to the newest verified one per
 # subject. No key or secret value is printed.
 
 # shellcheck source=lib.sh

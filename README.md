@@ -231,7 +231,7 @@ takebase backup prune --keep 3 --plan                          # then --confirm 
   - each selected D1 database as `wrangler d1 export` SQL, schema, data, indexes and triggers, with its `d1_migrations` history;
   - each tenant's `SECRETS` KV namespace as the stored AES-256-GCM envelopes and their metadata (ciphertext only);
   - `config.json`: the environment's tenant declarations, each Worker's binding names, the vars `TENANT_ID`, `TAKEBASE_ENV`, `DATA_KEY_VERSION` and `FIREBASE_DATABASE_NAMESPACE`, the repository's migration files with SHA-256, and the CLI version.
-- **Where it goes:** one private R2 bucket per environment (`backupBucket` in `takebase.jsonc`), under `backups/<id>/` with a `manifest.json`. Locally it is a Wrangler-persisted bucket in `examples/workers/global/.wrangler/state-backups`. Remotely, `takebase backup init --env <name>` creates it inside the environment's name prefix, with no public access, no r2.dev URL and no presigned links. The CLI runs everything through your own Wrangler login, pinned to `CLOUDFLARE_ACCOUNT_ID`. Who can read backups is whoever can read that bucket in the Cloudflare account. No Worker has an R2 binding.
+- **Where it goes:** one private R2 bucket per environment (`backupBucket` in `takebase.jsonc`), under `backups/<id>/` with a `manifest.json`. Locally it is a Wrangler-persisted bucket in `examples/workers/global/.wrangler/state`. Remotely, `takebase backup init --env <name>` creates it inside the environment's name prefix, with no public access, no r2.dev URL and no presigned links. The CLI runs everything through your own Wrangler login, pinned to `CLOUDFLARE_ACCOUNT_ID`. Who can read backups is whoever can read that bucket in the Cloudflare account. The global Worker alone binds it (`BACKUPS`), and only reads it: a tenant's admins see that tenant's manifest metadata and can check its objects' sizes and checksums (SEGU-227). No tenant Worker binds it, because a D1 export is plaintext SQL and a binding cannot be limited to one tenant's objects.
 - **Manifest and verification:** the manifest lists every object with its size and SHA-256, each database's schema version (last applied migration) and migrations, each tenant's ciphertext count and the data key versions it needs, and a checksum of itself. Backups are found through `backups/catalog.json`, because Wrangler cannot list R2 objects. A backup is *verified* only when all of these hold, checked again on every `list` and `verify` (the result is never stored):
   - it is in the catalog;
   - its manifest and catalog checksums agree;
@@ -293,6 +293,16 @@ Schema release policy:
 - Only local databases are supported here. `--remote` is refused: applying to a remote database is a separately authorized release step, run tenant by tenant with `wrangler d1 migrations apply <binding> --remote --env <tenant>` after a backup. There is no automatic rollback.
 
 Collections can declare Laravel-style model event hooks (`creating`, `updating`, `deleting` before the write; `created`, `updated`, `deleted` after it). Hooks run only after the collection's rule allowed the operation and the input validated; a before-hook's output is validated again, and side effects belong in the after-hooks, which run only once the write succeeded.
+
+### Secrets and backups in the admin
+
+A tenant's admins see, for that tenant only, in the admin's **Secrets** and **Backups** pages:
+
+- whether the installed key opens the stored secrets, which key versions exist, and each secret's metadata. Never a value, an envelope or a key;
+- the backups that hold the tenant, from their manifests, and a check of the manifest and the tenant's objects by size and SHA-256. It does not replay the SQL export: `takebase backup verify` does;
+- a restore review: the exact isolated target, what would block the restore, and the operator's commands.
+
+The pages only read. Rotation, restore and prune need the operator's keys, escrow and Cloudflare login, so they stay CLI commands the pages show but never run. Pruning and the global database are not one tenant's to act on. An R2 binding can write as far as the platform is concerned; read-only is enforced by the global Worker's code and its tests.
 
 ## Contributing
 

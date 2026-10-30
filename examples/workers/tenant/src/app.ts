@@ -9,6 +9,7 @@ import {
 	createLogger,
 	createOutboxService,
 	createRealtimeRoutes,
+	createSecretsRoutes,
 	deliverOutbox,
 } from "@takebase/core";
 import { type Context, Hono } from "hono";
@@ -159,6 +160,16 @@ app.route(
 				now,
 				dispatch,
 			};
+		},
+	}),
+);
+
+app.route(
+	"/",
+	createSecretsRoutes({
+		resolve: () => {
+			const { tenantId, environment, secrets } = useContext();
+			return { auth: requestLocals.get("auth") ?? null, tenantId, environment, secrets };
 		},
 	}),
 );

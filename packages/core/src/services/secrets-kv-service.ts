@@ -111,7 +111,10 @@ export const createSecretsService = ({ kv, keys, tenantId, environment, now }: S
 		}
 	};
 
-	return { put, get, status, check };
+	// Which key versions exist, by name only: no key is imported or returned.
+	const keyVersions = () => ({ active: keys.current, installed: [...keys.installed] });
+
+	return { put, get, status, check, keyVersions };
 };
 
 export type SecretsService = ReturnType<typeof createSecretsService>;

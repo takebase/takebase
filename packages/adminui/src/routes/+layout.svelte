@@ -70,6 +70,8 @@ const login = (event: SubmitEvent) => {
 			<a href={resolve("/access")}>Members, roles and invitations</a>
 			<a href={resolve("/collections")}>Collections</a>
 			<a href={resolve("/diagnostics")}>Diagnostics</a>
+			<a href={resolve("/secrets")}>Secrets</a>
+			<a href={resolve("/backups")}>Backups</a>
 		</nav>
 
 		{@render children()}

@@ -1,68 +1,35 @@
 import { createHash } from "node:crypto";
 import { CliError } from "../errors.ts";
 
-// The backup manifest (SEGU-225): what one backup holds and how to prove it is
-// intact. A backup is a set of objects under `backups/<backupId>/` plus this
-// manifest, written last. Each part was captured at its own time: a backup is
-// never one atomic snapshot across D1 databases, KV and configuration.
+// The backup manifest (SEGU-225): the types live in @takebase/contracts, which
+// the global Worker reads too (SEGU-227); this module seals, parses and checks
+// them on the operator's side. Type-only import: the CLI keeps no runtime
+// dependency.
 //
 // Integrity, not authenticity: the checksums detect corrupted, truncated,
 // missing or edited objects, not someone with write access to the bucket who
 // rewrites the objects, the manifest and the catalog consistently.
 
-export type BackupScope = "tenant" | "global" | "all";
+import type {
+	BackupCatalog,
+	BackupCatalogEntry,
+	BackupManifest,
+	BackupObject,
+	BackupPart,
+	BackupPruning,
+	BackupScope,
+} from "@takebase/contracts";
 
-export type BackupObject = { key: string; bytes: number; sha256: string };
-
-// A migration applied to the database, with the checksum of the repository file of that name.
-export type BackupMigration = { name: string; sha256: string | null };
-
-export type BackupPart =
-	| {
-			kind: "d1";
-			// "global" or "tenant:<id>".
-			target: string;
-			database: string;
-			capturedAt: string;
-			// The last applied migration, or null for an empty history.
-			schemaVersion: string | null;
-			migrations: BackupMigration[];
-			object: BackupObject;
-	  }
-	| {
-			kind: "kv";
-			target: string;
-			binding: string;
-			capturedAt: string;
-			// Ciphertext envelopes only; the data key versions they need, never a key.
-			count: number;
-			keyVersions: number[];
-			object: BackupObject;
-	  }
-	| { kind: "config"; target: string; capturedAt: string; object: BackupObject };
-
-export type BackupManifest = {
-	format: "takebase-backup";
-	version: 1;
-	backupId: string;
-	created: string;
-	environment: string;
-	scope: BackupScope;
-	cliVersion: string;
-	parts: BackupPart[];
-	// SHA-256 of the canonical JSON of every other field.
-	manifestSha256: string;
-};
-
-export type BackupCatalogEntry = { backupId: string; created: string; scope: BackupScope; manifestSha256: string };
-
-// A backup being pruned (SEGU-226): already out of `backups`, its objects
-// still to delete. A rerun of prune finishes it.
-export type BackupPruning = { backupId: string; keys: string[] };
-
-// `backups/catalog.json`: Wrangler cannot list R2 objects, so the catalog is
-// how backups are found. It never holds a verification result.
-export type BackupCatalog = { version: 1; backups: BackupCatalogEntry[]; pruning?: BackupPruning[] };
+export type {
+	BackupCatalog,
+	BackupCatalogEntry,
+	BackupManifest,
+	BackupMigration,
+	BackupObject,
+	BackupPart,
+	BackupPruning,
+	BackupScope,
+} from "@takebase/contracts";
 
 export const catalogKey = "backups/catalog.json";
 export const backupPrefix = (backupId: string) => `backups/${backupId}/`;

@@ -21,6 +21,10 @@
 			"migrations_dir": "../../../migrations/global"
 		}
 	],
+	// The environment's backup bucket (SEGU-227), which `takebase backup` writes
+	// and the admin routes only read. Locally Wrangler persists it with this
+	// Worker's state in .wrangler/state.
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-local-backups" }],
 	// Approved staging (SEGU-218): the real Firebase project and a remote D1 in the
 	// shared account. Deploy and migrate with the staging:* root scripts.
 	"env": {
@@ -37,7 +41,8 @@
 					"database_id": "4ff5c14c-f647-4f8b-b5b2-b594a58fe42a",
 					"migrations_dir": "../../../migrations/global"
 				}
-			]
+			],
+			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-staging-backups" }]
 		}
 	},
 	"observability": {
