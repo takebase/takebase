@@ -1,0 +1,13 @@
+{
+	"version": 1,
+	"projects": [
+		{
+			"path": ".",
+			"checks": [
+				{ "script": "typecheck", "covers": ["typecheck"] },
+				{ "script": "test", "covers": ["test"] },
+				{ "script": "build", "covers": ["build"] }
+			]
+		}
+	]
+}
