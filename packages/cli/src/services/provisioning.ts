@@ -14,14 +14,26 @@ export type WorkerBindings = {
 	d1_databases: { binding: string; database_name: string; database_id: string; migrations_dir: string }[];
 	// The tenant's encrypted secrets (SEGU-223).
 	kv_namespaces?: { binding: string; id: string }[];
+	// The limit on delivery routes anyone may trigger (SEGU-228).
+	ratelimits?: { name: string; namespace_id: string; simple: { limit: number; period: number } }[];
 };
+
+// One namespace for every tenant: keys carry the tenant's id. Wrangler's account
+// is shared, so the id is an unusual one; the same id elsewhere would share counters.
+export const tenantRateLimits: NonNullable<WorkerBindings["ratelimits"]> = [
+	{ name: "RATE_LIMITER", namespace_id: "728228", simple: { limit: 60, period: 60 } },
+];
 
 // What SEGU-223 added to every tenant environment. An environment provisioned
 // before it, which differs only by lacking these, is extended in place; any
 // other difference is still drift.
 export const secretsVars = ["TAKEBASE_ENV", "DATA_KEY_VERSION"];
 
-export type BindingAdditions = { vars: Record<string, string>; kv_namespaces?: WorkerBindings["kv_namespaces"] };
+export type BindingAdditions = {
+	vars: Record<string, string>;
+	kv_namespaces?: WorkerBindings["kv_namespaces"];
+	ratelimits?: WorkerBindings["ratelimits"];
+};
 
 export type Registration = { status: string; url: string };
 
@@ -55,11 +67,28 @@ export type TenantProvider = {
 	// signal until it caught up.
 	staleSignals: () => Promise<boolean>;
 	clearSignals: () => Promise<void>;
+	// True when the Realtime Database holds a grant or revocation above global
+	// D1's access revision: the tenant was deleted and registered again (its
+	// counter restarted, the database stayed), so members could not be granted
+	// and an old grant would outlive a new revocation.
+	staleAccess: () => Promise<boolean>;
+	clearAccess: () => Promise<void>;
 	// Null when this environment does not deploy (local: `takebase dev` runs it).
 	deployed: (() => Promise<boolean>) | null;
 	deploy: () => Promise<void>;
 	registration: () => Promise<Registration | null>;
 	register: (url: string) => Promise<void>;
+};
+
+// The newest revision in a tenant's /access node ({ members: { uid: { rev } },
+// revoked: { key: rev } }), or 0 when it holds none.
+export const newestAccessRevision = (access: unknown) => {
+	const { members, revoked } = (access ?? {}) as { members?: Record<string, { rev?: unknown }>; revoked?: unknown };
+	const revisions = [
+		...Object.values(members ?? {}).map(({ rev }) => rev),
+		...Object.values((revoked ?? {}) as Record<string, unknown>),
+	];
+	return Math.max(0, ...revisions.map((rev) => (typeof rev === "number" ? rev : 0)));
 };
 
 export type TenantPlan = {
@@ -91,7 +120,7 @@ const canonical = (value: unknown): unknown =>
 			: value;
 const same = (a: unknown, b: unknown) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
-// The SEGU-223 members `live` lacks, or null when anything else differs.
+// The SEGU-223 and SEGU-228 members `live` lacks, or null when anything else differs.
 const missingAdditions = (live: WorkerBindings, expected: WorkerBindings): BindingAdditions | null => {
 	const vars = Object.fromEntries(
 		secretsVars
@@ -99,13 +128,13 @@ const missingAdditions = (live: WorkerBindings, expected: WorkerBindings): Bindi
 			.map((key) => [key, expected.vars[key] ?? ""]),
 	);
 	const kv_namespaces = live.kv_namespaces === undefined ? expected.kv_namespaces : undefined;
-	const extended = {
-		...live,
-		vars: { ...live.vars, ...vars },
+	const ratelimits = live.ratelimits === undefined ? expected.ratelimits : undefined;
+	const members = {
 		...(kv_namespaces === undefined ? {} : { kv_namespaces }),
+		...(ratelimits === undefined ? {} : { ratelimits }),
 	};
-	if (!same(extended, expected)) return null;
-	return { vars, ...(kv_namespaces === undefined ? {} : { kv_namespaces }) };
+	if (!same({ ...live, vars: { ...live.vars, ...vars }, ...members }, expected)) return null;
+	return { vars, ...members };
 };
 
 const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
@@ -170,10 +199,14 @@ const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
 				additions = null;
 				const live = await provider.bindings();
 				if (live === null) return { done: false, detail: "" };
-				const expected = plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace"));
+				const planned = plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace"));
+				// Key rotation owns the key version once it exists: a rotated tenant is not drift.
+				const version = live.vars?.DATA_KEY_VERSION;
+				const expected =
+					version === undefined ? planned : { ...planned, vars: { ...planned.vars, DATA_KEY_VERSION: version } };
 				if (same(live, expected)) return { done: true, detail: "" };
 				additions = missingAdditions(live, expected);
-				if (additions !== null) return { done: false, detail: "lacks the secrets bindings" };
+				if (additions !== null) return { done: false, detail: "lacks newer bindings" };
 				// An existing environment that differs otherwise is drift: never overwrite it.
 				throw new CliError("The tenant's Wrangler environment exists but differs from what provisioning expects", {
 					hint: `Expected ${JSON.stringify(expected)}; fix wrangler.jsonc by hand, then run provision again.`,
@@ -201,6 +234,14 @@ const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
 				return { done: !stale, detail: stale ? "older than the tenant database" : "" };
 			},
 			apply: () => provider.clearSignals(),
+		},
+		{
+			name: "realtime access",
+			detect: async () => {
+				const stale = await provider.staleAccess();
+				return { done: !stale, detail: stale ? "ahead of the global database" : "" };
+			},
+			apply: () => provider.clearAccess(),
 		},
 		{
 			name: "worker deploy",

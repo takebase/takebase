@@ -34,7 +34,7 @@ export const tenantUrl = (port: number) => `http://localhost:${port}`;
 const root = new URL("../../", import.meta.url).pathname;
 export const workerDir = (name: "global" | "tenant") => `${root}examples/workers/${name}`;
 
-const signUp = async (email: string) => {
+export const signUp = async (email: string) => {
 	const response = await fetch(`${authEmulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-api-key`, {
 		method: "POST",
 		headers: { "content-type": "application/json" },

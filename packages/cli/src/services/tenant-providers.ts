@@ -8,7 +8,14 @@ import { dispatcherEmail, type EnvironmentConfig, type ProjectConfig, type Tenan
 import { localDatabaseArgs, outputTail, resolveTarget, runTool } from "../worker-target.ts";
 import { pagesUrl, queryD1, readWranglerFile, workerEnvironment, workerUrl } from "./environment.ts";
 import { applyMigrations, readHistory } from "./migration-service.ts";
-import type { BindingAdditions, TenantPlan, TenantProvider, WorkerBindings } from "./provisioning.ts";
+import {
+	type BindingAdditions,
+	newestAccessRevision,
+	type TenantPlan,
+	type TenantProvider,
+	tenantRateLimits,
+	type WorkerBindings,
+} from "./provisioning.ts";
 
 // The rules renderer comes from the tenant Worker's own realtime adapter
 // (`@takebase/adapter-firebase/rules`), resolved from the Worker's directory:
@@ -70,6 +77,7 @@ export const tenantPlan = async (
 				services,
 				d1_databases: [{ binding: "DB", database_name: `takebase-${tenant.id}`, database_id, migrations_dir }],
 				kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
+				ratelimits: tenantRateLimits,
 			}),
 			url: `http://localhost:${tenant.port}`,
 		};
@@ -98,6 +106,7 @@ export const tenantPlan = async (
 			services,
 			d1_databases: [{ binding: "DB", database_name: name, database_id, migrations_dir }],
 			kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
+			ratelimits: tenantRateLimits,
 		}),
 		url: workerUrl(environment, name),
 	};
@@ -113,11 +122,12 @@ export const writeBindings = (dir: string, env: string, bindings: WorkerBindings
 };
 
 // Inserts only missing members; insertJsoncProperty refuses any that exist.
-export const extendBindings = (dir: string, env: string, { vars, kv_namespaces }: BindingAdditions) => {
+export const extendBindings = (dir: string, env: string, { vars, kv_namespaces, ratelimits }: BindingAdditions) => {
 	const path = join(dir, "wrangler.jsonc");
 	let text = readFileSync(path, "utf8");
 	for (const [key, value] of Object.entries(vars)) text = insertJsoncProperty(text, ["env", env, "vars"], key, value);
 	if (kv_namespaces !== undefined) text = insertJsoncProperty(text, ["env", env], "kv_namespaces", kv_namespaces);
+	if (ratelimits !== undefined) text = insertJsoncProperty(text, ["env", env], "ratelimits", ratelimits);
 	writeFileSync(path, text);
 };
 
@@ -229,6 +239,17 @@ export const localTenantProvider = (
 		clearSignals: async () => {
 			const response = await rtdb("collections", { method: "DELETE" });
 			if (!response.ok) throw new CliError(`Could not clear ${tenant.id}'s realtime signals`);
+		},
+		// Firebase first: a revision raised meanwhile can only make this look older.
+		staleAccess: async () => {
+			const response = await rtdb("access");
+			const newest = response.ok ? newestAccessRevision(await response.json()) : 0;
+			const [row] = globalQuery(`select access_revision from tenants where id = ${sqlText(tenant.id)}`);
+			return newest > Number(row?.access_revision ?? 0);
+		},
+		clearAccess: async () => {
+			const response = await rtdb("access", { method: "DELETE" });
+			if (!response.ok) throw new CliError(`Could not clear ${tenant.id}'s realtime access`);
 		},
 		// `takebase dev` runs local tenant Workers; nothing is deployed.
 		deployed: null,

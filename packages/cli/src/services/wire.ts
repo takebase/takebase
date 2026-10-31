@@ -14,8 +14,8 @@ export type WireDeps = {
 	// One SQL statement on this tenant's D1, or on global D1.
 	tenant: (sql: string) => Record<string, unknown>[];
 	global: (sql: string) => Record<string, unknown>[];
-	// POSTs a tenant Worker route; the status (0 when unreachable) and JSON body.
-	post: (path: string) => Promise<{ status: number; body: unknown }>;
+	// POSTs a tenant Worker route; returns the HTTP status (0 when unreachable).
+	post: (path: string) => Promise<number>;
 	wait: (ms: number) => Promise<void>;
 	now: () => Date;
 };
@@ -71,8 +71,6 @@ export type DeliveryResult = {
 	attempts: number;
 	dispatch: number;
 	reconcile: number;
-	delivered: number;
-	failed: number;
 	// What is still owed after the last attempt.
 	status: WireStatus;
 };
@@ -85,25 +83,19 @@ const deliver = async (
 	done: (status: WireStatus) => boolean,
 	{ attempts, delayMs }: { attempts: number; delayMs: number },
 ): Promise<DeliveryResult> => {
-	let delivered = 0;
-	let failed = 0;
 	let dispatch = 0;
 	let reconcile = 0;
 	let status = wireStatus(deps, tenantId);
 	for (let attempt = 1; attempt <= attempts; attempt++) {
-		const dispatched = await deps.post("/api/realtime/dispatch");
-		dispatch = dispatched.status;
-		const counts = dispatched.body as { delivered?: unknown; failed?: unknown } | undefined;
-		delivered += typeof counts?.delivered === "number" ? counts.delivered : 0;
-		failed += typeof counts?.failed === "number" ? counts.failed : 0;
-		reconcile = (await deps.post("/api/realtime/reconcile")).status;
+		dispatch = await deps.post("/api/realtime/dispatch");
+		reconcile = await deps.post("/api/realtime/reconcile");
 		status = wireStatus(deps, tenantId);
 		if (dispatch === 200 && reconcile === 200 && done(status)) {
-			return { attempts: attempt, dispatch, reconcile, delivered, failed, status };
+			return { attempts: attempt, dispatch, reconcile, status };
 		}
 		if (attempt < attempts) await deps.wait(delayMs * 2 ** (attempt - 1));
 	}
-	return { attempts, dispatch, reconcile, delivered, failed, status };
+	return { attempts, dispatch, reconcile, status };
 };
 
 const settled = (status: WireStatus) =>
@@ -154,15 +146,10 @@ export const wireDeps = (project: ProjectConfig, environment: EnvironmentConfig,
 		post: async (path) => {
 			try {
 				const response = await fetch(`${url}${path}`, { method: "POST", signal: AbortSignal.timeout(30_000) });
-				let body: unknown;
-				try {
-					body = await response.json();
-				} catch {
-					body = undefined;
-				}
-				return { status: response.status, body };
+				await response.body?.cancel();
+				return response.status;
 			} catch {
-				return { status: 0, body: undefined };
+				return 0;
 			}
 		},
 		wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

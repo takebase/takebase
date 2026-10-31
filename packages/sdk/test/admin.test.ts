@@ -37,7 +37,7 @@ describe("SDK administration and diagnostics", () => {
 				// A reconcile URL chosen by the answer is never followed.
 				return Response.json({ reconcile: "https://elsewhere.example/api/realtime/reconcile" });
 			}
-			if (url.endsWith("/reconcile")) return Response.json({ revoked: 1 });
+			if (url.endsWith("/reconcile")) return Response.json({ ok: true });
 			if (url.endsWith("/members")) return Response.json({ members: [{ uid: "u1", roles: ["admin"] }] });
 			return Response.json({ revived: 2 });
 		});

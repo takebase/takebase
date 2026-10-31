@@ -11,6 +11,8 @@ import {
 	createRealtimeRoutes,
 	createSecretsRoutes,
 	deliverOutbox,
+	rateLimit,
+	requestSizeLimit,
 } from "@takebase/core";
 import { type Context, Hono } from "hono";
 import { collections } from "./collections/index.ts";
@@ -61,6 +63,12 @@ export const app = new Hono<{ Bindings: CloudflareBindings & BrowserVars }>();
 // Browser apps on other origins (CORS_ORIGINS, unset by default). Preflights are
 // answered here, before the membership guard.
 app.use("*", (c, next) => browserCors(c.env.CORS_ORIGINS)(c, next));
+app.use("*", requestSizeLimit);
+// Anyone may trigger delivery, and it costs D1, RPC and Firebase calls. Limited
+// before the guard, so an invalid token costs nothing more.
+for (const path of ["/api/realtime/dispatch", "/api/realtime/reconcile"]) {
+	app.use(path, (c, next) => rateLimit(c.env.RATE_LIMITER, c.env.TENANT_ID)(c, next));
+}
 
 // Unexpected failures: one redacted log line, and a generic envelope that never
 // carries the error itself. Outside a request scope (the composition root

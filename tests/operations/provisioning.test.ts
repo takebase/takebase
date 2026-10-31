@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import {
+	newestAccessRevision,
 	provisionTenant,
 	type TenantPlan,
 	type TenantProvider,
@@ -21,6 +22,7 @@ const plan: TenantPlan = {
 		services: [{ binding: "GLOBAL", service: "global", entrypoint: "MembershipEntrypoint" }],
 		d1_databases: [{ binding: "DB", database_name: "acme", database_id: id, migrations_dir: "m" }],
 		kv_namespaces: [{ binding: "SECRETS", id: secretsId }],
+		ratelimits: [{ name: "RATE_LIMITER", namespace_id: "1", simple: { limit: 60, period: 60 } }],
 	}),
 	url: "https://acme.example.test",
 };
@@ -35,6 +37,7 @@ const world = (crashAfter = 0) => {
 		bindings: null as WorkerBindings | null,
 		pending: 2,
 		stale: true,
+		staleAccess: true,
 		deployed: false,
 		registration: null as { status: string; url: string } | null,
 	};
@@ -100,6 +103,7 @@ const world = (crashAfter = 0) => {
 					...state.bindings,
 					vars: { ...state.bindings.vars, ...additions.vars },
 					...(additions.kv_namespaces ? { kv_namespaces: additions.kv_namespaces } : {}),
+					...(additions.ratelimits ? { ratelimits: additions.ratelimits } : {}),
 				};
 			}),
 		pendingMigrations: async () => state.pending,
@@ -111,6 +115,11 @@ const world = (crashAfter = 0) => {
 		clearSignals: () =>
 			act("signals", () => {
 				state.stale = false;
+			}),
+		staleAccess: async () => state.staleAccess,
+		clearAccess: () =>
+			act("access", () => {
+				state.staleAccess = false;
 			}),
 		deployed: async () => state.deployed,
 		deploy: () =>
@@ -136,11 +145,12 @@ const ready = {
 	bindings: 1,
 	migrations: 1,
 	signals: 1,
+	access: 1,
 	deploy: 1,
 };
 
 describe("tenant provisioning with a mocked provider (S-5-1-01)", () => {
-	const total = 10;
+	const total = 11;
 
 	it.each(Array.from({ length: total }, (_, index) => index + 1))(
 		"a crash after provider action %i, then a rerun, gives one ready tenant without duplicates",
@@ -186,14 +196,50 @@ describe("tenant provisioning with a mocked provider (S-5-1-01)", () => {
 
 	it("extends an environment provisioned before SEGU-223 with only the secrets bindings", async () => {
 		const { state, created, provider } = world();
-		Object.assign(state, { realtime: true, dispatcher: "uid-1", database: "db-1", pending: 0, stale: false });
+		Object.assign(state, {
+			realtime: true,
+			dispatcher: "uid-1",
+			database: "db-1",
+			pending: 0,
+			stale: false,
+			staleAccess: false,
+		});
 		state.rules = plan.rules("uid-1");
 		Object.assign(state, { deployed: true, registration: { status: "active", url: plan.url } });
-		const { kv_namespaces: _, ...older } = plan.bindings("db-1", "kv-1");
+		const { kv_namespaces: _, ratelimits: __, ...older } = plan.bindings("db-1", "kv-1");
 		state.bindings = { ...older, vars: { TENANT_ID: "acme" } };
 		await provisionTenant(provider, plan);
 		expect(state.bindings).toEqual(plan.bindings("db-1", "kv-1"));
 		expect(created).toEqual({ secrets: 1, extend: 1 });
+	});
+
+	it("leaves a tenant's rotated key version alone, and can still repair it", async () => {
+		const { state, created, provider } = world();
+		Object.assign(state, {
+			realtime: true,
+			dispatcher: "uid-1",
+			database: "db-1",
+			secrets: "kv-1",
+			pending: 0,
+			stale: false,
+			staleAccess: true,
+			deployed: true,
+			registration: { status: "active", url: plan.url },
+		});
+		state.rules = plan.rules("uid-1");
+		const planned = plan.bindings("db-1", "kv-1");
+		const rotated = { ...planned, vars: { ...planned.vars, DATA_KEY_VERSION: "2" } };
+		state.bindings = rotated;
+		await provisionTenant(provider, plan);
+		expect(state.bindings).toEqual(rotated);
+		expect(state.staleAccess).toBe(false);
+		expect(created).toEqual({ access: 1 });
+	});
+
+	it("reads the newest revision of a tenant's grants and revocations", () => {
+		expect(newestAccessRevision(null)).toBe(0);
+		expect(newestAccessRevision({ members: { a: { rev: 3 } }, revoked: { b: 8, _tenant: 2 } })).toBe(8);
+		expect(newestAccessRevision({ members: { a: { rev: 9 } }, revoked: { b: 8 } })).toBe(9);
 	});
 });
 

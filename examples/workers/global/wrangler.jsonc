@@ -25,6 +25,7 @@
 	// and the admin routes only read. Locally Wrangler persists it with this
 	// Worker's state in .wrangler/state.
 	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-local-backups" }],
+	"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }],
 	// Approved staging (SEGU-218): the real Firebase project and a remote D1 in the
 	// shared account. Deploy and migrate with the staging:* root scripts.
 	"env": {
@@ -42,7 +43,8 @@
 					"migrations_dir": "../../../migrations/global"
 				}
 			],
-			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-staging-backups" }]
+			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-staging-backups" }],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
 		}
 	},
 	"observability": {

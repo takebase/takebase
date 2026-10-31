@@ -1,4 +1,4 @@
-import { type ErrorCode, errorStatus, type RealtimeSession } from "@takebase/contracts";
+import { type DeliveryTriggered, type ErrorCode, errorStatus, type RealtimeSession } from "@takebase/contracts";
 import { type Context, Hono } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { createLogger, type Logger } from "../diagnostics/log.ts";
@@ -66,14 +66,16 @@ export const createRealtimeRoutes = ({ resolve }: RealtimeRoutesOptions) => {
 	// for this tenant (tenant disabled; members removed, disabled or with
 	// revoked sessions). The call carries no authority: the tenant
 	// Worker asks the global Worker what is owed and only ever revokes, so any
-	// caller may trigger it, and repeating it changes nothing.
+	// caller may trigger it, repeating it changes nothing, and the answer says
+	// nothing about what was owed.
 	routes.post("/api/realtime/reconcile", async (c) => {
 		const { adapter, revocations, tenantId, log = fallbackLog } = resolve();
 		if (!adapter || !revocations || tenantId === undefined) {
 			return fail(c, "unavailable", "Realtime is not available");
 		}
 		try {
-			return c.json(await reconcileRevocation(revocations, adapter, tenantId));
+			log.info("realtime.reconciled", await reconcileRevocation(revocations, adapter, tenantId));
+			return c.json({ ok: true } satisfies DeliveryTriggered);
 		} catch (error) {
 			log.error("realtime.revocation_failed", { tenantId, pending: true, error });
 			return fail(c, "unavailable", "Realtime revocation failed; it stays pending");

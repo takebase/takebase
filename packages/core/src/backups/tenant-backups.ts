@@ -18,7 +18,9 @@ import { parseEnvelope } from "../secrets/envelope.ts";
 
 // The part of an R2 bucket binding this module uses.
 export type BackupBucket = {
-	get: (key: string) => Promise<{ arrayBuffer: () => Promise<ArrayBuffer>; size: number } | null>;
+	get: (
+		key: string,
+	) => Promise<{ arrayBuffer: () => Promise<ArrayBuffer>; size: number; body: { cancel: () => Promise<void> } } | null>;
 };
 
 export const catalogKey = "backups/catalog.json";
@@ -29,7 +31,8 @@ export const isBackupId = (value: string) => backupIdPattern.test(value);
 
 // The newest catalogued backups considered for a list.
 export const maxListed = 50;
-// Larger objects are not hashed in the Worker; `takebase backup verify` checks them.
+// What one check reads into the Worker, in total, well under its 128 MiB memory
+// limit. Anything past it is left to `takebase backup verify`.
 export const maxCheckedBytes = 64 * 1024 * 1024;
 
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false });
@@ -198,6 +201,7 @@ export const checkTenantBackup = async (
 	if ((await sha256(canonicalJson(sealed))) !== manifestSha256) problems.push("manifest checksum mismatch");
 	checked.push("manifest checksum and catalog entry");
 
+	let budget = maxCheckedBytes;
 	for (const part of [...parts, ...manifest.parts.filter(({ kind }) => kind === "config")]) {
 		const { key, bytes, sha256: expected } = part.object;
 		const name = `${part.kind} export`;
@@ -205,7 +209,7 @@ export const checkTenantBackup = async (
 			problems.push(`${name}: outside the backup`);
 			continue;
 		}
-		if (bytes > maxCheckedBytes) {
+		if (bytes > budget) {
 			problems.push(`${name}: too large to check here; run takebase backup verify`);
 			continue;
 		}
@@ -214,11 +218,14 @@ export const checkTenantBackup = async (
 			problems.push(`${name}: missing`);
 			continue;
 		}
-		const content = await object.arrayBuffer();
-		if (content.byteLength !== bytes) {
-			problems.push(`${name}: ${content.byteLength} bytes, expected ${bytes} (truncated or altered)`);
+		// Compared before reading: the manifest's size is what the budget counted.
+		if (object.size !== bytes) {
+			await object.body.cancel();
+			problems.push(`${name}: ${object.size} bytes, expected ${bytes} (truncated or altered)`);
 			continue;
 		}
+		budget -= bytes;
+		const content = await object.arrayBuffer();
 		if ((await sha256(content)) !== expected) {
 			problems.push(`${name}: checksum mismatch`);
 			continue;

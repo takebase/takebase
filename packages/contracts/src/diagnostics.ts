@@ -48,5 +48,6 @@ export type TenantDiagnostics = {
 export type OutboxRetryRequest = { ids: string[] } | { dead: true };
 export type OutboxRetryResult = { revived: number };
 
-// POST /api/realtime/dispatch: counts only.
-export type DispatchCounts = { delivered: number; failed: number; pruned: number };
+// POST /api/realtime/dispatch and /reconcile: anyone may trigger them, so the
+// answer says nothing about what was owed. Operators read that through `wire`.
+export type DeliveryTriggered = { ok: true };
