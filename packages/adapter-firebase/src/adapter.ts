@@ -55,7 +55,9 @@ export const createFirebaseRealtime = ({
 	};
 
 	// One atomic update deletes the grant(s) and records the revocation. The
-	// rules reject a revocation older than the stored one; that one already won.
+	// rules reject a revocation older than the stored one; that one already won,
+	// but the grant still ends: it may come from before a restarted revision
+	// counter. A member who still belongs just opens a new session.
 	const revokeAt = async (key: string, fields: Record<string, unknown>, rev: number) => {
 		try {
 			await client.update("access", { ...fields, [`revoked/${key}`]: rev });
@@ -63,6 +65,7 @@ export const createFirebaseRealtime = ({
 			if (!isDenied(error)) throw error;
 			const stored = await client.get<unknown>(`access/revoked/${key}`);
 			if (typeof stored !== "number" || stored < rev) throw error;
+			await client.update("access", fields);
 		}
 	};
 

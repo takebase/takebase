@@ -36,6 +36,7 @@
 	// Encrypted secrets (SEGU-223): AES-256-GCM envelopes only, under data key
 	// DATA_KEY_V<DATA_KEY_VERSION>, which is a Worker secret, never a var.
 	"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-local-secrets" }],
+	"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }],
 	"env": {
 		"tenant-a": {
 			"vars": {
@@ -55,7 +56,8 @@
 					"migrations_dir": "../../../migrations/tenant"
 				}
 			],
-			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-a-secrets" }]
+			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-a-secrets" }],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
 		},
 		"tenant-b": {
 			"vars": {
@@ -75,7 +77,8 @@
 					"migrations_dir": "../../../migrations/tenant"
 				}
 			],
-			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-b-secrets" }]
+			"kv_namespaces": [{ "binding": "SECRETS", "id": "local-takebase-tenant-b-secrets" }],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
 		},
 		// Approved staging (SEGU-218): each tenant's real Realtime Database and remote
 		// D1. FIREBASE_API_KEY and the dispatcher credentials are uploaded as secrets
@@ -103,7 +106,8 @@
 					"binding": "SECRETS",
 					"id": "7e829120f57142a9a9c87c3d2f35221c"
 				}
-			]
+			],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
 		},
 		"staging-tenant-b": {
 			"name": "takebase-staging-tenant-b",
@@ -128,7 +132,8 @@
 					"binding": "SECRETS",
 					"id": "a50e5974b3b845949f76113d97fdd793"
 				}
-			]
+			],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
 		}
 	},
 	"observability": {

@@ -182,6 +182,12 @@ Commands verified in Wave 6-5 (SEGU-227), with the same tool versions:
   - `pnpm staging:e2e` now includes `staging-admin-recovery.spec.ts`, which only reads: `probe` verifies the newest backup and reviews its restore, and `alice` is refused. The sandbox blocks Chromium's outbound network.
   - `pnpm staging:seed` raises a tenant's access revision. Use it when `POST /api/realtime/session` answers 503 with `realtime.grant_failed` because a revocation in Firebase is ahead of global D1. It also clears both tenants' collection signals.
 
+Commands verified in Wave 7-1 (SEGU-228), with the same tool versions:
+- Locally:
+  - `pnpm smoke:security` runs lint, typecheck, test, `takebase health` and the S-7-1-01 boundary journey `pnpm journey:security`. Run it with no stack up.
+- Against approved staging:
+  - `pnpm staging:deploy:plan`, `pnpm staging:deploy`, `pnpm staging:provision:plan`, `pnpm staging:health`, `pnpm staging:journey` and `pnpm staging:e2e`. The Workers now carry a `RATE_LIMITER` binding (namespace `728228`). The real limiter is never tripped on purpose: tests use a stub, and flooding is excluded.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

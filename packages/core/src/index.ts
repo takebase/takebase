@@ -56,6 +56,8 @@ export { checkReadiness } from "./diagnostics/readiness.ts";
 export type { DiagnosticsRequest, DiagnosticsRoutesOptions } from "./diagnostics/routes.ts";
 export { createDiagnosticsRoutes } from "./diagnostics/routes.ts";
 export { browserCors } from "./http/cors.ts";
+export { type RateLimiter, rateLimit } from "./http/rate-limit.ts";
+export { maxRequestBytes, requestSizeLimit } from "./http/request-size.ts";
 export type { RealtimeAdapter } from "./realtime/adapter.ts";
 export type { DispatchOptions, DispatchResult } from "./realtime/dispatcher.ts";
 export { deliveredRetentionMs, deliverOutbox, dispatchOutbox } from "./realtime/dispatcher.ts";

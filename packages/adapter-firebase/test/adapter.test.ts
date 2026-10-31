@@ -57,9 +57,10 @@ describe("Firebase realtime adapter", () => {
 		]);
 	});
 
-	it("treats a revocation older than the stored one as already done, and fails otherwise", async () => {
-		const older = scripted(denied(), json(8), silent());
+	it("a revocation older than the stored one keeps it but still ends the grant, and fails otherwise", async () => {
+		const older = scripted(denied(), json(8), silent(), silent());
 		await older.adapter.revoke("user1", 6);
+		expect(older.calls[2]).toEqual({ method: "PATCH", path: "/access.json", body: { "members/user1": null } });
 		const refused = scripted(denied(), json(3));
 		await expect(refused.adapter.revoke("user1", 6)).rejects.toMatchObject({ code: "denied" });
 	});

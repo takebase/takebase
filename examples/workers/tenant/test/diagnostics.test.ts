@@ -1,11 +1,5 @@
 import { env } from "cloudflare:workers";
-import type {
-	AdminCollectionList,
-	DispatchCounts,
-	ErrorEnvelope,
-	OutboxRetryResult,
-	TenantDiagnostics,
-} from "@takebase/contracts";
+import type { AdminCollectionList, ErrorEnvelope, OutboxRetryResult, TenantDiagnostics } from "@takebase/contracts";
 import {
 	type AuthIdentity,
 	createDiagnosticsRoutes,
@@ -159,9 +153,15 @@ describe("tenant outbox diagnostics (SEGU-221)", () => {
 		const line = JSON.parse(String(log.mock.calls.at(-1)?.[0]));
 		expect(line).toMatchObject({ event: "outbox.retry", actor: "uid-admin", revived: 1, requestId: "test-request" });
 
-		// The authority-free flush: counts only; delivered past retention is pruned.
+		// The authority-free flush; delivered past retention is pruned.
 		const flushed = await post("/api/realtime/dispatch");
-		expect((await flushed.json()) as DispatchCounts).toEqual({ delivered: 2, failed: 0, pruned: 1 });
+		expect(await flushed.json()).toEqual({ ok: true });
+		expect(JSON.parse(String(log.mock.calls.at(-1)?.[0]))).toMatchObject({
+			event: "realtime.dispatched",
+			delivered: 2,
+			failed: 0,
+			pruned: 1,
+		});
 		for (const args of fake.published()) {
 			expect(args).toEqual(["policies", expect.any(Number)]);
 			expect(JSON.stringify(args)).not.toContain(recordId);

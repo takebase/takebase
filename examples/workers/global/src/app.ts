@@ -1,4 +1,4 @@
-import { browserCors, checkReadiness, createLogger } from "@takebase/core";
+import { browserCors, checkReadiness, createLogger, rateLimit, requestSizeLimit } from "@takebase/core";
 import { Hono } from "hono";
 import { createContext } from "./context.ts";
 import { runInRequest, useContext } from "./request-store.ts";
@@ -18,6 +18,9 @@ export const app = new Hono<{ Bindings: CloudflareBindings & BrowserVars }>();
 
 // Browser apps on other origins (CORS_ORIGINS, unset by default).
 app.use("*", (c, next) => browserCors(c.env.CORS_ORIGINS)(c, next));
+app.use("*", requestSizeLimit);
+// Slows guessing of invitation tokens, which are long and random anyway.
+app.use("/api/invites/redeem", (c, next) => rateLimit(c.env.RATE_LIMITER, "global")(c, next));
 
 // Unexpected failures: one redacted log line, and a generic envelope that never
 // carries the error itself. Outside a request scope (the composition root

@@ -49,7 +49,7 @@ export {
 } from "./collections.ts";
 export type {
 	DeadOutboxEvent,
-	DispatchCounts,
+	DeliveryTriggered,
 	OutboxRetryRequest,
 	OutboxRetryResult,
 	Readiness,

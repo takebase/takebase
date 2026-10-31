@@ -63,8 +63,7 @@ const printStatus = (io: CliIo, tenantId: string, status: WireStatus) => {
 
 const printDelivery = (io: CliIo, tenantId: string, result: DeliveryResult) => {
 	io.stdout(
-		`Delivery: dispatch HTTP ${result.dispatch}, reconcile HTTP ${result.reconcile}; ` +
-			`${result.delivered} delivered, ${result.failed} failed in ${result.attempts} attempt(s)\n`,
+		`Delivery: dispatch HTTP ${result.dispatch}, reconcile HTTP ${result.reconcile} in ${result.attempts} attempt(s)\n`,
 	);
 	printStatus(io, tenantId, result.status);
 	const owed =

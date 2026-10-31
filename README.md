@@ -154,8 +154,9 @@ node packages/cli/src/bin.ts tenant list                                        
 5. the tenant's Wrangler environment in the tenant `wrangler.jsonc`
 6. tenant migrations
 7. stale realtime signals: a revision above the tenant D1's newest outbox revision is cleared
-8. deploy (remote only)
-9. registration in global D1
+8. stale realtime access: grants and revocations above global D1's access revision are cleared, as after `tenant delete` and a new registration
+9. deploy (remote only)
+10. registration in global D1
 
 A rerun after any failure resumes where it stopped and never creates anything twice. An existing Wrangler environment or registration that differs from what provisioning expects stops it instead of being overwritten. The tenant is registered last, so a half-provisioned tenant is never discovered. Provision never enables a disabled tenant.
 
@@ -303,6 +304,42 @@ A tenant's admins see, for that tenant only, in the admin's **Secrets** and **Ba
 - a restore review: the exact isolated target, what would block the restore, and the operator's commands.
 
 The pages only read. Rotation, restore and prune need the operator's keys, escrow and Cloudflare login, so they stay CLI commands the pages show but never run. Pruning and the global database are not one tenant's to act on. An R2 binding can write as far as the platform is concerned; read-only is enforced by the global Worker's code and its tests.
+
+## Security
+
+Takebase has had no external audit or formal certification, and its tests do not prove it ready for production. The evidence is automated tests, local emulators and the staging environment. `pnpm smoke:security` runs the boundary journey locally.
+
+### Model
+
+- **Identity:** Firebase Auth proves who a caller is. A token alone grants nothing: each protected request also asks the global Worker whether that user is a member of this tenant, and with which role.
+- **Tenants:** each tenant has its own Worker, D1 database, Realtime Database and encrypted secrets. A token or URL for one tenant gives no access to another.
+- **Data:** collection rules run on the server and deny by default. The SDK and the admin are never a security boundary.
+- **Realtime:** Firebase carries only "something changed" signals, never records. Clients refetch through the API, where the rules apply again. Database rules reject a grant that is not newer than the latest revocation.
+- **Secrets and backups:** secrets are AES-256-GCM ciphertext. Their keys stay outside the data, with recovery escrow held by the operator. Backups go to a private R2 bucket and are never served publicly.
+- **Admin:** only a tenant's admins can read its diagnostics, secret metadata and backups, and they never see a value, envelope or key.
+
+### Limits on requests
+
+- Each Worker refuses a request body over 1 MiB with HTTP 413, before parsing it.
+- `POST /api/realtime/dispatch`, `POST /api/realtime/reconcile` and `POST /api/invites/redeem` allow 60 requests per minute per client address, then answer HTTP 429.
+
+### What anonymous callers can reach
+
+- `GET /health` and `GET /health/ready`. Readiness shows the service name, the tenant id on tenant Workers, and whether each dependency is ready. This exposure is accepted, so that uptime checks need no credentials.
+- `POST /api/realtime/dispatch` and `POST /api/realtime/reconcile`. These only deliver what is already committed or already owed, and they answer `{ "ok": true }` without saying how much that was.
+
+### Known limits
+
+- **Rate limiting is approximate.** Cloudflare counts per location, so this slows abuse without guaranteeing a cap. Callers behind one shared address share the 60 requests. If the limiter itself fails, requests go through, so that an outage cannot hold back revocations. Other routes rely on authentication and on Cloudflare's own protections.
+- **Revocations are delivered asynchronously.** Removing a member takes effect on that member's next API request. The realtime revocation stays pending in global D1 until the next session open or delivery trigger, so a removed member may see "something changed" signals, not records, until then.
+- **Signing out is client behaviour.** The SDK's sign-out and local wipe are a convenience, and a modified client can skip them. Enforcement is the database rules and the per-request membership check.
+- **A stolen token works until it is refused.** It keeps working until it expires, unless an operator runs `takebase user revoke-sessions` or disables or deletes the user. Removing the member refuses it on that tenant.
+- **Backups do not replace key recovery or Firebase Auth exports.** Secrets in a backup stay ciphertext, so losing both the key and its escrow loses those secrets.
+- **The local stack is for development only.** It trusts the Auth emulator's unsigned tokens by design, so never expose it to a network.
+
+### Reporting a vulnerability
+
+**Private contact: not set yet.** Until one is published here, do not post exploit details in a public issue, because this repository is mirrored publicly. Reports should cover the affected component and version, the steps to reproduce and the impact. Please leave out real user data, keys and tokens.
 
 ## Contributing
 

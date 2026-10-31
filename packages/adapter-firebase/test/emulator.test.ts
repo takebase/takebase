@@ -134,4 +134,27 @@ describe.skipIf(!running)("Firebase realtime rules on the emulator", () => {
 		expect(await code(adapter.grant(member.uid, 23))).toBe("denied");
 		expect(await code(adapter.grant(member.uid, 24))).toBe("ok");
 	});
+
+	// `tenant delete` keeps the database, and re-registering restarts the tenant's
+	// access revision (SEGU-228): the new revocation is older than the stored one.
+	it("a revocation older than the stored one still ends the grant", async () => {
+		await adapter.revoke(member.uid, 100);
+		await adapter.grant(member.uid, 110);
+		await adapter.revoke(member.uid, 5);
+		expect(await code(member.client.get("collections"))).toBe("denied");
+		expect(await owner.get(`access/revoked/${member.uid}`)).toBe(100);
+
+		await adapter.revokeAll(200);
+		await adapter.grant(member.uid, 210);
+		await adapter.revokeAll(6);
+		expect(await owner.get("access/members")).toBeNull();
+		expect(await owner.get("access/revoked/_tenant")).toBe(200);
+
+		// What provisioning does when this state is ahead of global D1.
+		expect(await code(member.client.update("access", { members: null, "revoked/_tenant": null }))).toBe("denied");
+		expect(await code(dispatcher.client.update("access", { members: null, "revoked/_tenant": null }))).toBe("ok");
+		expect(await code(adapter.grant(member.uid, 1))).toBe("denied");
+		expect(await code(dispatcher.client.update("access", { [`revoked/${member.uid}`]: null }))).toBe("ok");
+		expect(await code(adapter.grant(member.uid, 1))).toBe("ok");
+	});
 });

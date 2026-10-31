@@ -13,7 +13,7 @@ import {
 import { addSecret, readSecretsFile } from "../secrets-file.ts";
 import { outputTail } from "../worker-target.ts";
 import { assertOwned, cloudflareEnv, parseToolJson, queryD1, workerUrl } from "./environment.ts";
-import type { TenantProvider } from "./provisioning.ts";
+import { newestAccessRevision, type TenantProvider } from "./provisioning.ts";
 import {
 	applyRemoteMigrations,
 	defaultRemoteDeps,
@@ -213,6 +213,30 @@ export const remoteTenantProvider = (
 				await deleted.body?.cancel();
 				if (!deleted.ok) throw new CliError(`Clearing ${name}'s ${collection} signal failed: ${deleted.status}`);
 			}
+		},
+		// Firebase first: a revision raised meanwhile can only make this look older.
+		staleAccess: async () => {
+			const token = await dispatcherToken();
+			const response = await deps.fetch(`${databaseUrl}/access.json?auth=${token}`);
+			if (!response.ok) throw new CliError(`Reading ${name}'s realtime access failed: ${response.status}`);
+			const newest = newestAccessRevision(await response.json());
+			const [row] = globalQuery(`select access_revision from tenants where id = ${sqlText(tenant.id)}`);
+			return newest > Number(row?.access_revision ?? 0);
+		},
+		// The rules let the dispatcher clear every grant and each revocation.
+		clearAccess: async () => {
+			const token = await dispatcherToken();
+			const response = await deps.fetch(`${databaseUrl}/access/revoked.json?shallow=true&auth=${token}`);
+			if (!response.ok) throw new CliError(`Reading ${name}'s realtime access failed: ${response.status}`);
+			const revoked = Object.keys(((await response.json()) as Record<string, unknown> | null) ?? {});
+			const cleared = await deps.fetch(`${databaseUrl}/access.json?auth=${token}`, {
+				method: "PATCH",
+				body: JSON.stringify(
+					Object.fromEntries([["members", null], ...revoked.map((key) => [`revoked/${key}`, null])]),
+				),
+			});
+			await cleared.body?.cancel();
+			if (!cleared.ok) throw new CliError(`Clearing ${name}'s realtime access failed: ${cleared.status}`);
 		},
 		// Deployed means its /health answers for this tenant; `takebase deploy` updates code.
 		deployed: async () => healthy({ tenantId: tenant.id })(await getUrl(deps, health)),

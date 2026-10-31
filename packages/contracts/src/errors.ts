@@ -8,6 +8,7 @@ export const errorCodes = [
 	"forbidden",
 	"not_found",
 	"conflict",
+	"payload_too_large",
 	"rate_limited",
 	"internal",
 	"unavailable",
@@ -22,6 +23,7 @@ export const errorStatus: Record<ErrorCode, number> = {
 	forbidden: 403,
 	not_found: 404,
 	conflict: 409,
+	payload_too_large: 413,
 	rate_limited: 429,
 	internal: 500,
 	// A dependency the server needs (such as the global Worker) could not answer.

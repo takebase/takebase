@@ -1,5 +1,5 @@
 import {
-	type DispatchCounts,
+	type DeliveryTriggered,
 	type ErrorCode,
 	errorStatus,
 	type OutboxRetryResult,
@@ -145,8 +145,9 @@ export const createDiagnosticsRoutes = ({ resolve }: DiagnosticsRoutesOptions) =
 		const { adapter, db, log } = resolve();
 		if (!adapter) return fail(c, "unavailable", "Realtime is not available");
 		try {
-			const counts: DispatchCounts = await deliverOutbox({ outbox: createOutboxService(db), adapter });
-			return c.json(counts);
+			const counts = await deliverOutbox({ outbox: createOutboxService(db), adapter });
+			log.info("realtime.dispatched", counts);
+			return c.json({ ok: true } satisfies DeliveryTriggered);
 		} catch (error) {
 			log.error("realtime.dispatch_failed", { error });
 			return fail(c, "unavailable", "Realtime delivery failed; events stay pending");
