@@ -199,7 +199,11 @@ const tenantSteps = (provider: TenantProvider, plan: TenantPlan): Step[] => {
 				additions = null;
 				const live = await provider.bindings();
 				if (live === null) return { done: false, detail: "" };
-				const expected = plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace"));
+				const planned = plan.bindings(need(databaseId, "D1 database"), need(namespaceId, "secrets namespace"));
+				// Key rotation owns the key version once it exists: a rotated tenant is not drift.
+				const version = live.vars?.DATA_KEY_VERSION;
+				const expected =
+					version === undefined ? planned : { ...planned, vars: { ...planned.vars, DATA_KEY_VERSION: version } };
 				if (same(live, expected)) return { done: true, detail: "" };
 				additions = missingAdditions(live, expected);
 				if (additions !== null) return { done: false, detail: "lacks newer bindings" };

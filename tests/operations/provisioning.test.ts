@@ -213,6 +213,29 @@ describe("tenant provisioning with a mocked provider (S-5-1-01)", () => {
 		expect(created).toEqual({ secrets: 1, extend: 1 });
 	});
 
+	it("leaves a tenant's rotated key version alone, and can still repair it", async () => {
+		const { state, created, provider } = world();
+		Object.assign(state, {
+			realtime: true,
+			dispatcher: "uid-1",
+			database: "db-1",
+			secrets: "kv-1",
+			pending: 0,
+			stale: false,
+			staleAccess: true,
+			deployed: true,
+			registration: { status: "active", url: plan.url },
+		});
+		state.rules = plan.rules("uid-1");
+		const planned = plan.bindings("db-1", "kv-1");
+		const rotated = { ...planned, vars: { ...planned.vars, DATA_KEY_VERSION: "2" } };
+		state.bindings = rotated;
+		await provisionTenant(provider, plan);
+		expect(state.bindings).toEqual(rotated);
+		expect(state.staleAccess).toBe(false);
+		expect(created).toEqual({ access: 1 });
+	});
+
 	it("reads the newest revision of a tenant's grants and revocations", () => {
 		expect(newestAccessRevision(null)).toBe(0);
 		expect(newestAccessRevision({ members: { a: { rev: 3 } }, revoked: { b: 8, _tenant: 2 } })).toBe(8);
