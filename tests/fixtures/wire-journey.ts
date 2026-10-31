@@ -147,9 +147,11 @@ const alice = await signIn("alice@example.test", fixturePassword("ALICE"));
 const bob = await signIn("bob@example.test", fixturePassword("BOB"));
 // Start from no membership (a staging probe may hold one from an earlier run).
 cli("tenant", "user", "remove", "tenant-a", admin.uid);
+// When that user is the tenant's last admin the removal is refused, so it stays one.
+const madeAdmin = cli("tenant", "user", "add", "tenant-a", admin.uid, "--role", "admin");
 expect(
 	"operator makes the journey user an admin of tenant-a",
-	cli("tenant", "user", "add", "tenant-a", admin.uid, "--role", "admin").status === 0,
+	madeAdmin.status === 0 || madeAdmin.output.includes("already has that role"),
 );
 
 console.log("-- a committed change, seen by alice's realtime session");
