@@ -11,17 +11,27 @@
 		".": "./src/index.ts"
 	},
 	"files": [
-		"src",
+		"dist",
 		"templates"
 	],
 	"engines": {
 		"node": ">=24"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit",
+		"prepack": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"devDependencies": {
 		"@takebase/contracts": "workspace:*",
 		"@types/node": "^26.6.5"
+	},
+	"publishConfig": {
+		"bin": {
+			"takebase": "./dist/bin.js"
+		},
+		"exports": {
+			".": "./dist/index.js"
+		}
 	}
 }

@@ -1,5 +1,4 @@
-import { id, timestamps } from "@takebase/core";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { id, integer, sqliteTable, text, timestamps } from "@takebase/core/schema";
 import { agents } from "./agents.ts";
 
 // Tenant D1 table; `pnpm db:generate` turns changes here into migrations/tenant SQL.

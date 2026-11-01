@@ -2,9 +2,9 @@ import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseCommandArgs } from "../args.ts";
 import { CliError, type CliIo } from "../errors.ts";
+import { moduleFile } from "../module-file.ts";
 import {
 	dispatcherEmail,
 	type EnvironmentConfig,
@@ -80,7 +80,7 @@ const supervise = (child: ChildProcess) =>
 	});
 
 const underEmulators = (project: ProjectConfig, environment: EnvironmentConfig, args: string[]) => {
-	const bin = fileURLToPath(new URL("../bin.ts", import.meta.url));
+	const bin = moduleFile("../bin", import.meta.url);
 	const command = [process.execPath, bin, "dev", ...args].map(shellQuote).join(" ");
 	const child = spawn(
 		"firebase",

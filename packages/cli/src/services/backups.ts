@@ -353,10 +353,24 @@ export const latestBackupId = async (store: BackupStore) =>
 	[...parseCatalog(await readText(store, catalogKey)).backups].sort(newestFirst)[0]?.backupId;
 
 // Every catalogued backup, newest first, each verified again now.
-export const listBackups = async (store: BackupStore) => {
+// Whether a catalogued backup holds this tenant. A whole-environment backup holds
+// the tenants of its day, so its manifest decides; a manifest that cannot be read
+// counts as a match, so a damaged backup is never hidden from the listing.
+const holdsTenant = async (store: BackupStore, entry: BackupCatalogEntry, tenantId: string) => {
+	if (entry.scope === "global") return false;
+	if (entry.scope === "tenant") return entry.backupId.endsWith(`-tenant-${tenantId}`);
+	const raw = await store.get(manifestKey(entry.backupId)).catch(() => null);
+	const manifest = raw === null ? null : parseManifest(new TextDecoder().decode(raw));
+	return manifest === null || manifest.parts.some(({ target }) => target === `tenant:${tenantId}`);
+};
+
+export const listBackups = async (store: BackupStore, { tenant }: { tenant?: string } = {}) => {
 	const catalog = parseCatalog(await readText(store, catalogKey));
 	const entries = [...catalog.backups].sort(newestFirst);
 	const listed: { entry: BackupCatalogEntry; verification: BackupVerification }[] = [];
-	for (const entry of entries) listed.push({ entry, verification: await verifyAgainst(store, entry.backupId, entry) });
+	for (const entry of entries) {
+		if (tenant !== undefined && !(await holdsTenant(store, entry, tenant))) continue;
+		listed.push({ entry, verification: await verifyAgainst(store, entry.backupId, entry) });
+	}
 	return listed;
 };

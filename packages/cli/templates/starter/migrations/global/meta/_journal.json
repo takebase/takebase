@@ -1,0 +1,55 @@
+{
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1792818099307,
+			"tag": "0000_tenants_memberships",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1792897297002,
+			"tag": "0001_access_revision",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1792897297789,
+			"tag": "0002_access_revision_triggers",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1793025894709,
+			"tag": "0003_tenant_revocations",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1793025900402,
+			"tag": "0004_tenant_revocation_trigger",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1793054909426,
+			"tag": "0005_identities_roles_invitations",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1793054914298,
+			"tag": "0006_admin_triggers",
+			"breakpoints": true
+		}
+	]
+}

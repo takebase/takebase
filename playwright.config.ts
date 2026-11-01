@@ -7,7 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
 	testDir: "tests/e2e",
 	// Staging tests run only through playwright.staging.config.ts (pnpm staging:e2e).
-	testIgnore: "staging-*.spec.ts",
+	testIgnore: ["staging-*.spec.ts", "generated-starter.spec.ts"],
 	fullyParallel: false,
 	workers: 1,
 	retries: 0,

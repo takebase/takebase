@@ -225,6 +225,24 @@ describe("deploy and remote provisioning plans (recording runner)", () => {
 		);
 	});
 
+	it("deploy --tenant touches that tenant only, and refuses one it cannot deploy", async () => {
+		const { config, environment } = project();
+		const real = recorder();
+		const steps = await deployEnvironment(real.deps, config, environment, { tenant: "tenant-a" });
+		expect(steps.map(({ step }) => step)).toEqual([
+			"tenant tenant-a migrations",
+			"tenant tenant-a deploy",
+			"tenant tenant-a check",
+		]);
+		const writes = real.calls.filter((call) => !readOnly(call) && call.tool !== "fetch");
+		expect(writes.length).toBeGreaterThan(0);
+		for (const { args } of writes) expect(args.join(" ")).toContain("staging-tenant-a");
+		await expect(deployEnvironment(real.deps, config, environment, { tenant: "acme" })).rejects.toThrow(/not declared/);
+		await expect(deployEnvironment(real.deps, config, environment, { tenant: "tenant-c", plan: true })).rejects.toThrow(
+			/cannot be deployed/,
+		);
+	});
+
 	it("provision --plan of a new remote tenant reads only and writes no file", async () => {
 		const { config, environment } = project();
 		const before = ["secrets.env", "tenant/wrangler.jsonc"].map((path) => readFileSync(join(root, path), "utf8"));

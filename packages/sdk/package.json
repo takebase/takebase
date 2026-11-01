@@ -10,9 +10,21 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run"
+		"test": "vitest run",
+		"prepack": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"@takebase/contracts": "workspace:*"
+	},
+	"files": [
+		"dist"
+	],
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
 	}
 }

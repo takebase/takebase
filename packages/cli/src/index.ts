@@ -12,11 +12,10 @@ import { migrateCommand } from "./commands/migrate.ts";
 import { secretsCommand } from "./commands/secrets.ts";
 import { tenantCommand } from "./commands/tenant.ts";
 import { wireCommand } from "./commands/wire.ts";
-import { findCommandGroup } from "./config.ts";
 import { CliError, type CliIo } from "./errors.ts";
 import { mainHelp, version } from "./help.ts";
 
-export type { CommandGroup, CommandStatus } from "./config.ts";
+export type { CommandGroup } from "./config.ts";
 export { commandGroups } from "./config.ts";
 export type { CliIo } from "./errors.ts";
 export { CliError } from "./errors.ts";
@@ -53,11 +52,6 @@ const dispatch = (argv: string[], io: CliIo) => {
 	}
 	const command = commands[first];
 	if (command) return command(rest, io);
-	if (findCommandGroup(first)?.status === "planned") {
-		throw new CliError(`\`takebase ${first}\` is planned but not implemented yet`, {
-			hint: "Run `takebase --help` to see the commands this version supports.",
-		});
-	}
 	throw new CliError(`Unknown command or option "${first}"`, {
 		usage: true,
 		hint: "Run `takebase --help` to list commands.",

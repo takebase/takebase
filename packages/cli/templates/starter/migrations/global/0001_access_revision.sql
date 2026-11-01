@@ -1,0 +1,1 @@
+ALTER TABLE `tenants` ADD `access_revision` integer DEFAULT 0 NOT NULL;

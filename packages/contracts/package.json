@@ -9,6 +9,18 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"prepack": "rm -rf dist && tsc -p tsconfig.build.json"
+	},
+	"files": [
+		"dist"
+	],
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
 	}
 }

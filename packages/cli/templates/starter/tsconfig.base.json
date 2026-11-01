@@ -10,8 +10,6 @@
 		"verbatimModuleSyntax": true,
 		"isolatedModules": true,
 		"skipLibCheck": true,
-		"lib": ["ESNext"],
-		"types": ["./worker-configuration.d.ts", "node"]
-	},
-	"include": ["src", "worker-configuration.d.ts"]
+		"lib": ["ESNext"]
+	}
 }

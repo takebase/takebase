@@ -4,17 +4,16 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "wrangler dev",
-		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
-		"typecheck": "wrangler types --env-interface CloudflareBindings && tsc --noEmit"
-	},
-	"dependencies": {
-		"hono": "^4.13.13"
+		"dev": "takebase dev --seed 'node scripts/seed.ts'",
+		"dev:stop": "takebase dev --stop",
+		"health": "takebase health",
+		"doctor": "takebase doctor",
+		"typecheck": "pnpm -r typecheck"
 	},
 	"devDependencies": {
-		"@types/node": "^26.6.5",
-		"typescript": "^6.0.3",
-		"wrangler": "^4.151.3"
+		"@takebase/cli": "{{version}}"
+	},
+	"engines": {
+		"node": ">=24"
 	}
 }

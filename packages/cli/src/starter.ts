@@ -3,6 +3,7 @@ import { basename, isAbsolute, join, parse, relative, resolve, sep } from "node:
 import { fileURLToPath } from "node:url";
 import { projectNamePattern } from "./config.ts";
 import { CliError } from "./errors.ts";
+import { version } from "./help.ts";
 
 // Copies the bundled local starter. No remote template fetch, no credentials:
 // the template ships no .env or .dev.vars files.
@@ -125,7 +126,11 @@ export const writeStarter = (options: StarterOptions): StarterResult => {
 
 	for (const { source, destination } of plan) {
 		mkdirSync(join(destination, ".."), { recursive: true });
-		writeFileSync(destination, readFileSync(source, "utf8").replaceAll("{{name}}", name));
+		// The framework packages are pinned to this CLI's own version.
+		writeFileSync(
+			destination,
+			readFileSync(source, "utf8").replaceAll("{{name}}", name).replaceAll("{{version}}", version),
+		);
 	}
 	return { target, name, files: plan.map(({ file }) => file) };
 };

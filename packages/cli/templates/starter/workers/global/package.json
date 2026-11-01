@@ -1,0 +1,20 @@
+{
+	"name": "{{name}}-global",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"typecheck": "wrangler types --env-interface CloudflareBindings && tsc --noEmit"
+	},
+	"dependencies": {
+		"@takebase/contracts": "{{version}}",
+		"@takebase/core": "{{version}}",
+		"hono": "^4.13.13"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"drizzle-kit": "0.31.11",
+		"typescript": "^6.0.3",
+		"wrangler": "^4.151.3"
+	}
+}
