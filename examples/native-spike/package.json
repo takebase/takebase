@@ -1,0 +1,9 @@
+{
+	"name": "@takebase/example-native-spike",
+	"private": true,
+	"description": "Feasibility spike only (SEGU-229): not a supported runtime. D1 stays the source of truth.",
+	"type": "module",
+	"scripts": {
+		"start": "bun src/index.ts"
+	}
+}

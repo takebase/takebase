@@ -1,0 +1,331 @@
+{
+	"environment": {
+		"target": "local workerd and D1, RTDB and Auth emulators",
+		"date": "2026-10-31T22:43:27.863Z",
+		"commit": "c8a8e43",
+		"client": "Apple M4, 32 GiB, darwin 25.6.0, Node v24.21.0",
+		"wrangler": "4.151.3",
+		"workerRequests": 3625
+	},
+	"results": [
+		{
+			"name": "liveness (no auth, one D1 read)",
+			"concurrency": 1,
+			"count": 200,
+			"errors": 0,
+			"p50": 1.7,
+			"p95": 2.6,
+			"p99": 3.3,
+			"max": 13.1,
+			"perSecond": 535.4
+		},
+		{
+			"name": "invalid token refused",
+			"concurrency": 1,
+			"count": 200,
+			"errors": 0,
+			"p50": 1.8,
+			"p95": 2.6,
+			"p99": 8.7,
+			"max": 46.3,
+			"perSecond": 465
+		},
+		{
+			"name": "create",
+			"concurrency": 1,
+			"count": 200,
+			"errors": 0,
+			"p50": 8.1,
+			"p95": 11.3,
+			"p99": 22.7,
+			"max": 39.3,
+			"perSecond": 113.9
+		},
+		{
+			"name": "view (membership check + D1 read)",
+			"concurrency": 1,
+			"count": 200,
+			"errors": 0,
+			"p50": 3.4,
+			"p95": 4.9,
+			"p99": 26.9,
+			"max": 31.1,
+			"perSecond": 242.3
+		},
+		{
+			"name": "update",
+			"concurrency": 1,
+			"count": 200,
+			"errors": 0,
+			"p50": 7.2,
+			"p95": 9.7,
+			"p99": 27,
+			"max": 30.2,
+			"perSecond": 125.8
+		},
+		{
+			"name": "liveness (no auth, one D1 read)",
+			"concurrency": 8,
+			"count": 200,
+			"errors": 0,
+			"p50": 6.2,
+			"p95": 16.3,
+			"p99": 30.9,
+			"max": 31.1,
+			"perSecond": 1020.4
+		},
+		{
+			"name": "invalid token refused",
+			"concurrency": 8,
+			"count": 200,
+			"errors": 0,
+			"p50": 6.9,
+			"p95": 31.5,
+			"p99": 33.5,
+			"max": 34.3,
+			"perSecond": 880.5
+		},
+		{
+			"name": "create",
+			"concurrency": 8,
+			"count": 200,
+			"errors": 0,
+			"p50": 37.5,
+			"p95": 59.8,
+			"p99": 70.8,
+			"max": 71.6,
+			"perSecond": 204.2
+		},
+		{
+			"name": "view (membership check + D1 read)",
+			"concurrency": 8,
+			"count": 200,
+			"errors": 0,
+			"p50": 15.2,
+			"p95": 37.6,
+			"p99": 55.8,
+			"max": 56.8,
+			"perSecond": 446.8
+		},
+		{
+			"name": "update",
+			"concurrency": 8,
+			"count": 200,
+			"errors": 0,
+			"p50": 36.6,
+			"p95": 73.5,
+			"p99": 81.9,
+			"max": 103,
+			"perSecond": 193.5
+		},
+		{
+			"name": "list: default order (1000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 3.8,
+			"p95": 6.2,
+			"p99": 31.5,
+			"max": 35.2,
+			"perSecond": 213.5
+		},
+		{
+			"name": "list: filter and sort (1000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 4.8,
+			"p95": 9.4,
+			"p99": 28.5,
+			"max": 33.9,
+			"perSecond": 174.7
+		},
+		{
+			"name": "list: range filter (1000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 3.8,
+			"p95": 5.9,
+			"p99": 28.2,
+			"max": 33.3,
+			"perSecond": 221.4
+		},
+		{
+			"name": "list: deepest page (1000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 4.2,
+			"p95": 5.4,
+			"p99": 31.1,
+			"max": 34.3,
+			"perSecond": 196.8
+		},
+		{
+			"name": "list: default order (1000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 16.7,
+			"p95": 49.8,
+			"p99": 57.8,
+			"max": 57.8,
+			"perSecond": 400.3
+		},
+		{
+			"name": "list: filter and sort (1000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 16.3,
+			"p95": 84,
+			"p99": 94.6,
+			"max": 94.8,
+			"perSecond": 362.2
+		},
+		{
+			"name": "list: range filter (1000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 14.6,
+			"p95": 55.1,
+			"p99": 58.2,
+			"max": 58.3,
+			"perSecond": 436.9
+		},
+		{
+			"name": "list: deepest page (1000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 19.7,
+			"p95": 50.6,
+			"p99": 56.8,
+			"max": 56.9,
+			"perSecond": 366
+		},
+		{
+			"name": "list: default order (10000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 6.4,
+			"p95": 8,
+			"p99": 57.4,
+			"max": 77.7,
+			"perSecond": 128.4
+		},
+		{
+			"name": "list: filter and sort (10000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 5.4,
+			"p95": 6.9,
+			"p99": 38.2,
+			"max": 39.2,
+			"perSecond": 160.6
+		},
+		{
+			"name": "list: range filter (10000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 4.2,
+			"p95": 7.8,
+			"p99": 31.7,
+			"max": 35.4,
+			"perSecond": 187.3
+		},
+		{
+			"name": "list: deepest page (10000 rows)",
+			"concurrency": 1,
+			"count": 100,
+			"errors": 0,
+			"p50": 11.1,
+			"p95": 12.5,
+			"p99": 44.1,
+			"max": 44.2,
+			"perSecond": 82.9
+		},
+		{
+			"name": "list: default order (10000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 33.1,
+			"p95": 53.7,
+			"p99": 69.1,
+			"max": 69.5,
+			"perSecond": 220.6
+		},
+		{
+			"name": "list: filter and sort (10000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 22.6,
+			"p95": 52.5,
+			"p99": 54.3,
+			"max": 59.7,
+			"perSecond": 329
+		},
+		{
+			"name": "list: range filter (10000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 20.4,
+			"p95": 62.1,
+			"p99": 63.2,
+			"max": 65.3,
+			"perSecond": 297.9
+		},
+		{
+			"name": "list: deepest page (10000 rows)",
+			"concurrency": 8,
+			"count": 100,
+			"errors": 0,
+			"p50": 72.3,
+			"p95": 118.6,
+			"p99": 126.4,
+			"max": 135.2,
+			"perSecond": 103.6
+		}
+	],
+	"signal": {
+		"samples": 20,
+		"timeouts": 0,
+		"p50": 30,
+		"max": 45
+	},
+	"drain": {
+		"events": 1000,
+		"delivered": 1000,
+		"ms": 71,
+		"perSecond": 13996
+	},
+	"bundles": [
+		{
+			"worker": "tenant",
+			"bytes": 350249,
+			"gzipBytes": 76717,
+			"startupMs": 13.8,
+			"note": ""
+		},
+		{
+			"worker": "global",
+			"bytes": 309862,
+			"gzipBytes": 66611,
+			"startupMs": 12.4,
+			"note": ""
+		}
+	],
+	"resources": {
+		"processes": 7,
+		"rssMiB": 1656,
+		"cpuTimes": ["0:00.07", "0:05.30", "0:02.92", "0:00.07", "0:00.15", "0:10.81", "0:00.04"]
+	}
+}

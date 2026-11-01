@@ -1,0 +1,219 @@
+{
+	"environment": {
+		"target": "takebase-staging-tenant-a (deployed)",
+		"date": "2026-11-01T00:20:25.391Z",
+		"commit": "c8a8e43",
+		"client": "Apple M4, 32 GiB, darwin 25.6.0, Node v24.21.0",
+		"wrangler": "4.151.3",
+		"workerRequests": 140
+	},
+	"results": [
+		{
+			"name": "liveness (no auth, one D1 read)",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 64.5,
+			"p95": 69.9,
+			"p99": 69.9,
+			"max": 69.9,
+			"perSecond": 16.1
+		},
+		{
+			"name": "invalid token refused",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 55.1,
+			"p95": 106.1,
+			"p99": 106.1,
+			"max": 106.1,
+			"perSecond": 16.5
+		},
+		{
+			"name": "create",
+			"concurrency": 1,
+			"count": 10,
+			"errors": 0,
+			"p50": 122.3,
+			"p95": 210,
+			"p99": 210,
+			"max": 210,
+			"perSecond": 7.8
+		},
+		{
+			"name": "view (membership check + D1 read)",
+			"concurrency": 1,
+			"count": 10,
+			"errors": 0,
+			"p50": 65,
+			"p95": 90.5,
+			"p99": 90.5,
+			"max": 90.5,
+			"perSecond": 14.3
+		},
+		{
+			"name": "update",
+			"concurrency": 1,
+			"count": 10,
+			"errors": 0,
+			"p50": 87.1,
+			"p95": 116.3,
+			"p99": 116.3,
+			"max": 116.3,
+			"perSecond": 10.8
+		},
+		{
+			"name": "liveness (no auth, one D1 read)",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 39.6,
+			"p95": 129.8,
+			"p99": 129.8,
+			"max": 129.8,
+			"perSecond": 45.9
+		},
+		{
+			"name": "invalid token refused",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 52.6,
+			"p95": 180.6,
+			"p99": 180.6,
+			"max": 180.6,
+			"perSecond": 28.2
+		},
+		{
+			"name": "create",
+			"concurrency": 4,
+			"count": 10,
+			"errors": 0,
+			"p50": 128.5,
+			"p95": 212.1,
+			"p99": 212.1,
+			"max": 212.1,
+			"perSecond": 25.3
+		},
+		{
+			"name": "view (membership check + D1 read)",
+			"concurrency": 4,
+			"count": 10,
+			"errors": 0,
+			"p50": 73.2,
+			"p95": 127.7,
+			"p99": 127.7,
+			"max": 127.7,
+			"perSecond": 41
+		},
+		{
+			"name": "update",
+			"concurrency": 4,
+			"count": 10,
+			"errors": 0,
+			"p50": 88.2,
+			"p95": 122.7,
+			"p99": 122.7,
+			"max": 122.7,
+			"perSecond": 36.3
+		},
+		{
+			"name": "list: default order (67 rows)",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 65.5,
+			"p95": 72.1,
+			"p99": 72.1,
+			"max": 72.1,
+			"perSecond": 15.1
+		},
+		{
+			"name": "list: filter and sort (67 rows)",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 63.6,
+			"p95": 71.5,
+			"p99": 71.5,
+			"max": 71.5,
+			"perSecond": 15.3
+		},
+		{
+			"name": "list: range filter (67 rows)",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 66.3,
+			"p95": 69.7,
+			"p99": 69.7,
+			"max": 69.7,
+			"perSecond": 15.2
+		},
+		{
+			"name": "list: deepest page (67 rows)",
+			"concurrency": 1,
+			"count": 6,
+			"errors": 0,
+			"p50": 64.5,
+			"p95": 70.1,
+			"p99": 70.1,
+			"max": 70.1,
+			"perSecond": 15.3
+		},
+		{
+			"name": "list: default order (67 rows)",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 62,
+			"p95": 93,
+			"p99": 93,
+			"max": 93,
+			"perSecond": 47.1
+		},
+		{
+			"name": "list: filter and sort (67 rows)",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 64.9,
+			"p95": 88.7,
+			"p99": 88.7,
+			"max": 88.7,
+			"perSecond": 46.9
+		},
+		{
+			"name": "list: range filter (67 rows)",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 64.5,
+			"p95": 105.8,
+			"p99": 105.8,
+			"max": 105.8,
+			"perSecond": 46.6
+		},
+		{
+			"name": "list: deepest page (67 rows)",
+			"concurrency": 4,
+			"count": 6,
+			"errors": 0,
+			"p50": 63.4,
+			"p95": 68.9,
+			"p99": 68.9,
+			"max": 68.9,
+			"perSecond": 45.7
+		}
+	],
+	"signal": {
+		"samples": 5,
+		"timeouts": 0,
+		"p50": 313,
+		"max": 479
+	},
+	"drain": null,
+	"bundles": [],
+	"resources": null
+}

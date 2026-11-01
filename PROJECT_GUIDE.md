@@ -188,6 +188,14 @@ Commands verified in Wave 7-1 (SEGU-228), with the same tool versions:
 - Against approved staging:
   - `pnpm staging:deploy:plan`, `pnpm staging:deploy`, `pnpm staging:provision:plan`, `pnpm staging:health`, `pnpm staging:journey` and `pnpm staging:e2e`. The Workers now carry a `RATE_LIMITER` binding (namespace `728228`). The real limiter is never tripped on purpose: tests use a stub, and flooding is excluded.
 
+Commands verified in Wave 7-2 (SEGU-229), with the same tool versions and Bun 1.3.10:
+- Locally:
+  - `pnpm smoke:performance` runs lint, typecheck, test, `pnpm spike:native` and `pnpm benchmark:quick`. Run it with no stack up.
+  - `pnpm benchmark:local`, against a running `pnpm dev:stack`, writes `benchmarks/results/local.json`.
+  - `pnpm spike:native` needs Bun, which CI does not use, so a break there does not fail CI. It is a feasibility check, not a supported runtime.
+- Against approved staging:
+  - `pnpm staging:benchmark` measures `takebase-staging-tenant-a`, stops itself at 200 Worker requests and removes its `BENCH-` records. Each run needs the operator's approval. Its first cleanup query failed with Cloudflare API error 7403 on both runs and a retry worked; the cause is unknown.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping
