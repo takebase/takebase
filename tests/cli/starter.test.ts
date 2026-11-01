@@ -6,6 +6,7 @@ import {
 	readdirSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	symlinkSync,
 	writeFileSync,
 } from "node:fs";
@@ -18,19 +19,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const bin = fileURLToPath(new URL("../../packages/cli/src/bin.ts", import.meta.url));
 
-const starterFiles = [
-	".gitignore",
-	"README.md",
-	"migrations/.gitkeep",
-	"package.json",
-	"pnpm-workspace.yaml",
-	"src/app.ts",
-	"src/context.ts",
-	"src/index.ts",
-	"src/request-store.ts",
-	"tsconfig.json",
-	"wrangler.jsonc",
-];
+const template = fileURLToPath(new URL("../../packages/cli/templates/starter", import.meta.url));
+
+const starterFiles = readdirSync(template, { recursive: true, withFileTypes: true })
+	.filter((entry) => entry.isFile())
+	.map((entry) => join(entry.parentPath, entry.name).slice(template.length + 1))
+	.map((file) => (file === "_gitignore" ? ".gitignore" : file))
+	.sort();
 
 let cwd: string;
 
@@ -63,14 +58,12 @@ afterEach(() => {
 });
 
 describe("takebase help", () => {
-	it("lists implemented commands separately from planned ones", () => {
+	it("lists every command group and nothing planned", () => {
 		const { code, stdout } = cli("--help");
 		expect(code).toBe(0);
-		const [implemented, planned] = stdout.split("Planned (not implemented yet):");
-		for (const group of commandGroups) {
-			expect(group.status === "implemented" ? implemented : planned).toMatch(new RegExp(`^  ${group.name} `, "m"));
-		}
-		expect(commandGroups.filter((group) => group.status === "implemented").map((group) => group.name)).toEqual([
+		expect(stdout).not.toMatch(/planned|not implemented/i);
+		for (const group of commandGroups) expect(stdout).toMatch(new RegExp(`^  ${group.name} `, "m"));
+		expect(commandGroups.map((group) => group.name)).toEqual([
 			"init",
 			"create",
 			"dev",
@@ -117,6 +110,31 @@ describe("takebase help", () => {
 	});
 });
 
+// The starter's framework-owned code and migrations are the examples' own, so a
+// change there cannot leave generated projects behind.
+describe("the starter template", () => {
+	const repository = fileURLToPath(new URL("../..", import.meta.url));
+	const copies = [
+		["examples/workers/global/src", "workers/global/src"],
+		["migrations/global", "migrations/global"],
+		["examples/workers/tenant/src/app.ts", "workers/tenant/src/app.ts"],
+		["examples/workers/tenant/src/context.ts", "workers/tenant/src/context.ts"],
+		["examples/workers/tenant/src/index.ts", "workers/tenant/src/index.ts"],
+		["examples/workers/tenant/src/request-store.ts", "workers/tenant/src/request-store.ts"],
+		["examples/workers/tenant/src/schema/outbox.ts", "workers/tenant/src/schema/outbox.ts"],
+	] as const;
+
+	it.each(copies)("%s matches its copy in the template", (from, to) => {
+		const source = join(repository, from);
+		const copy = join(template, to);
+		const files = statSync(source).isDirectory() ? listFiles(source) : [""];
+		expect(statSync(copy).isDirectory() ? listFiles(copy) : [""]).toEqual(files);
+		for (const file of files) {
+			expect(readFileSync(join(copy, file), "utf8"), file).toBe(readFileSync(join(source, file), "utf8"));
+		}
+	});
+});
+
 describe("takebase create / init", () => {
 	it("creates a starter with the expected files and project name", () => {
 		const { code, stdout } = cli("create", "my-app");
@@ -128,10 +146,21 @@ describe("takebase create / init", () => {
 
 		const pkg = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
 		expect(pkg.name).toBe("my-app");
-		const wrangler = parse(readFileSync(join(target, "wrangler.jsonc"), "utf8"));
-		expect(wrangler).toMatchObject({ name: "my-app", main: "src/index.ts", compatibility_flags: ["nodejs_als"] });
-		expect(wrangler.d1_databases[0].database_id).toBe("local-my-app");
-		for (const file of starterFiles) expect(readFileSync(join(target, file), "utf8")).not.toContain("{{name}}");
+		const wrangler = parse(readFileSync(join(target, "workers/tenant/wrangler.jsonc"), "utf8"));
+		expect(wrangler).toMatchObject({
+			name: "my-app-tenant",
+			main: "src/index.ts",
+			compatibility_flags: ["nodejs_als"],
+		});
+		expect(wrangler.services[0].service).toBe("my-app-global");
+		expect(parse(readFileSync(join(target, "takebase.jsonc"), "utf8")).environments.local.firebaseProject).toBe(
+			"demo-my-app",
+		);
+		for (const file of starterFiles) {
+			const text = readFileSync(join(target, file), "utf8");
+			expect(text, file).not.toContain("{{name}}");
+			expect(text, file).not.toContain("{{version}}");
+		}
 	});
 
 	it("copies no credentials or local secret files", () => {
@@ -194,7 +223,7 @@ describe("takebase create / init", () => {
 
 			// A link inside the target must not redirect writes elsewhere, even with --force.
 			mkdirSync(join(cwd, "app"));
-			symlinkSync(outside, join(cwd, "app", "src"));
+			symlinkSync(outside, join(cwd, "app", "workers"));
 			expect(cli("init", "app", "--force")).toMatchObject({
 				code: 1,
 				stderr: expect.stringContaining("not a regular directory"),

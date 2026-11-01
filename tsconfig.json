@@ -9,6 +9,8 @@
 		"benchmarks",
 		"examples/native-spike",
 		"vitest.config.ts",
+		"vitest.packaging.config.ts",
+		"playwright.starter.config.ts",
 		"playwright.config.ts",
 		"playwright.staging.config.ts"
 	]

@@ -168,6 +168,19 @@ describe("backup verification (R-6-3-01)", () => {
 		]);
 	});
 
+	it("lists only the backups holding a tenant, and never hides a damaged one", async () => {
+		const b = await backed();
+		const all = { ...draft, created: new Date("2026-10-28T13:00:00Z"), scope: "all" } as const;
+		const whole = await commitBackup(b.store, all, await capture());
+		const global = { ...draft, created: new Date("2026-10-28T14:00:00Z"), scope: "global" } as const;
+		await commitBackup(b.store, global, (await capture()).slice(-1));
+		const ids = async (tenant: string) => (await listBackups(b.store, { tenant })).map(({ entry }) => entry.backupId);
+		expect(await ids("tenant-a")).toEqual([whole.backupId, b.manifest.backupId]);
+		expect(await ids("tenant-b")).toEqual([]);
+		b.objects.delete(manifestKey(whole.backupId));
+		expect(await ids("tenant-b")).toEqual([whole.backupId]);
+	});
+
 	it("never verifies or lists a backup that did not reach the catalog", async () => {
 		const b = await backed();
 		b.objects.delete(catalogKey);

@@ -12,23 +12,50 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run"
-	},
-	"dependencies": {
-		"@takebase/firebase-rtdb": "github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44"
+		"test": "vitest run",
+		"prepack": "rm -rf dist && tsc -p tsconfig.build.json && esbuild dist/index.js dist/rules.js dist/client.js --bundle --splitting --format=esm --platform=neutral --outdir=dist --allow-overwrite --external:firebase/* --log-level=warning && rm dist/adapter.js dist/settings.js"
 	},
 	"peerDependencies": {
+		"@takebase/core": "workspace:*",
+		"@takebase/sdk": "workspace:*",
 		"firebase": "^13.0.0"
 	},
 	"peerDependenciesMeta": {
+		"@takebase/core": {
+			"optional": true
+		},
+		"@takebase/sdk": {
+			"optional": true
+		},
 		"firebase": {
 			"optional": true
 		}
 	},
 	"devDependencies": {
 		"@takebase/core": "workspace:*",
+		"@takebase/firebase-rtdb": "github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44",
 		"@takebase/sdk": "workspace:*",
 		"@types/node": "^26.6.5",
+		"esbuild": "0.28.2",
 		"firebase": "13.0.0"
+	},
+	"files": [
+		"dist"
+	],
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			},
+			"./rules": {
+				"types": "./dist/rules.d.ts",
+				"default": "./dist/rules.js"
+			},
+			"./client": {
+				"types": "./dist/client.d.ts",
+				"default": "./dist/client.js"
+			}
+		}
 	}
 }

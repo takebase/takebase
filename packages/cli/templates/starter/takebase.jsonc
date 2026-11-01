@@ -1,0 +1,28 @@
+// The project's deployment environments, read by the `takebase` CLI. Nothing here
+// is secret. Add a remote environment before deploying: see the Takebase CLI README.
+{
+	"workers": {
+		"global": "workers/global",
+		"tenant": "workers/tenant",
+		"app": "app"
+	},
+	"environments": {
+		// Emulators and local D1 only (`pnpm dev`).
+		"local": {
+			"remote": false,
+			"firebaseProject": "demo-{{name}}",
+			"dispatcherEmail": "takebase-dispatcher+{tenant}@example.test",
+			// The Auth emulator's fixed password; never a real one.
+			"dispatcherPassword": "local-only-password",
+			// Local data keys and escrow, written by `takebase secrets init`; git-ignored.
+			"keysFile": "ops/.local.env",
+			"escrowDir": "ops/.escrow/local",
+			"backupBucket": "{{name}}-local-backups",
+			"globalPort": 8787,
+			"appPort": 5173,
+			"tenants": {
+				"demo": { "name": "Demo", "env": "demo", "port": 8788 }
+			}
+		}
+	}
+}

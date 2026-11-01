@@ -308,20 +308,22 @@ importers:
         version: 4.151.3(@cloudflare/workers-types@5.20261021.1)(@types/node@26.6.5)
 
   packages/adapter-firebase:
-    dependencies:
-      '@takebase/firebase-rtdb':
-        specifier: github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44
-        version: https://codeload.github.com/takebase/firebase-rtdb/tar.gz/7fec2f76f89f3cab81b56038abc354e59796fe44
     devDependencies:
       '@takebase/core':
         specifier: workspace:*
         version: link:../core
+      '@takebase/firebase-rtdb':
+        specifier: github:takebase/firebase-rtdb#7fec2f76f89f3cab81b56038abc354e59796fe44
+        version: https://codeload.github.com/takebase/firebase-rtdb/tar.gz/7fec2f76f89f3cab81b56038abc354e59796fe44
       '@takebase/sdk':
         specifier: workspace:*
         version: link:../sdk
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       firebase:
         specifier: 13.0.0
         version: 13.0.0

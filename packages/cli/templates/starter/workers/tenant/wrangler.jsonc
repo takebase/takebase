@@ -1,0 +1,40 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "{{name}}-tenant",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-19",
+	"compatibility_flags": ["nodejs_als"],
+	// One tenant Worker per tenant, each with its own D1 database. `takebase tenant
+	// create` and `pnpm dev` add each tenant's environment under "env" below. The top
+	// level holds local placeholders so the Worker's types can be generated.
+	"vars": {
+		"TENANT_ID": "local",
+		"FIREBASE_DATABASE_URL": "http://127.0.0.1:9000",
+		"FIREBASE_API_KEY": "demo-api-key",
+		"FIREBASE_DATABASE_NAMESPACE": "demo-{{name}}-local",
+		"TAKEBASE_ENV": "local",
+		"DATA_KEY_VERSION": "1"
+	},
+	// Membership checks go to the global Worker's RPC entrypoint over a service
+	// binding, never a configurable URL. Bindings are not inherited by environments.
+	"services": [{ "binding": "GLOBAL", "service": "{{name}}-global", "entrypoint": "MembershipEntrypoint" }],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "{{name}}-tenant-local",
+			"database_id": "local-{{name}}-tenant-local",
+			"migrations_dir": "../../migrations/tenant"
+		}
+	],
+	// Encrypted secrets: AES-256-GCM envelopes only, under a data key that is a Worker secret.
+	"kv_namespaces": [{ "binding": "SECRETS", "id": "local-{{name}}-tenant-local-secrets" }],
+	"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }],
+	"env": {},
+	"observability": {
+		"enabled": true
+	}
+}

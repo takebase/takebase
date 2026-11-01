@@ -196,6 +196,12 @@ Commands verified in Wave 7-2 (SEGU-229), with the same tool versions and Bun 1.
 - Against approved staging:
   - `pnpm staging:benchmark` measures `takebase-staging-tenant-a`, stops itself at 200 Worker requests and removes its `BENCH-` records. Each run needs the operator's approval. Its first cleanup query failed with Cloudflare API error 7403 on both runs and a retry worked; the cause is unknown.
 
+Commands verified in Wave 7-3 (SEGU-230), with the same tool versions, locally only:
+- `pnpm smoke:packaging` runs lint, typecheck, test, build, `pnpm test:packaging`, `takebase build`, `pnpm journey:cli` against a stack and `pnpm e2e:starter`. Run it with no stack up. It needs the npm registry for the consumer's dependencies. The two packaging steps are not in CI.
+- `pnpm test:packaging` packs the packages and installs them outside the workspace, where the global pnpm (12.6.0 here) applies instead of the pinned one. Tarballs ship built JavaScript, because Node refuses type stripping under `node_modules`; workspace `exports` stay on the TypeScript source, and `publishConfig` applies only when packing.
+- `pnpm e2e:starter` packs, generates, installs, typechecks and serves a project from the tarballs in a temporary directory, which it removes when it stops.
+- `pnpm journey:cli` needs a running `pnpm dev:stack`.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

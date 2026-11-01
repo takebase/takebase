@@ -4,7 +4,7 @@ import { loadProjectConfig, resolveEnvironment } from "../project-config.ts";
 import { buildEnvironment, type DeployStep, deployEnvironment } from "../services/deployment.ts";
 import { defaultRemoteDeps } from "../services/remote-workers.ts";
 
-const deployUsage = "takebase deploy --env <name> (--plan | --confirm <name>)";
+const deployUsage = "takebase deploy --env <name> [--tenant <id>] (--plan | --confirm <name>)";
 
 const deployHelp = `Deploy one remote environment: global migrations and Worker, every registered
 active tenant (migrations and Worker), then the app.
@@ -13,6 +13,7 @@ Usage: ${deployUsage}
 
 Options:
   --env <name>      Remote environment from takebase.jsonc
+  --tenant <id>     Only this tenant (its migrations and Worker), which must be active
   --plan            Read-only: show what deploy would run and change nothing
   --confirm <name>  Repeat the environment name to deploy it
   -h, --help        Show this help
@@ -52,6 +53,7 @@ const printStep =
 export const deployCommand = async (args: string[], io: CliIo) => {
 	const { values, positionals } = parseCommandArgs("deploy", args, {
 		env: { type: "string" },
+		tenant: { type: "string" },
 		plan: { type: "boolean" },
 		confirm: { type: "string" },
 		help: { type: "boolean", short: "h" },
@@ -75,15 +77,18 @@ export const deployCommand = async (args: string[], io: CliIo) => {
 	if (!plan && values.confirm !== environment.name) {
 		throw usageError(`Deploying "${environment.name}" changes remote resources; repeat --confirm ${environment.name}`);
 	}
-	io.stdout(
-		`${plan ? "Plan for deploying" : "Deploying"} "${environment.name}"${plan ? " (nothing will change)" : ""}\n`,
-	);
-	const steps = await deployEnvironment(defaultRemoteDeps, project, environment, { plan, report: printStep(io) });
+	const subject = `${values.tenant === undefined ? "" : `tenant ${values.tenant} of `}"${environment.name}"`;
+	io.stdout(`${plan ? "Plan for deploying" : "Deploying"} ${subject}${plan ? " (nothing will change)" : ""}\n`);
+	const steps = await deployEnvironment(defaultRemoteDeps, project, environment, {
+		plan,
+		report: printStep(io),
+		...(values.tenant === undefined ? {} : { tenant: values.tenant }),
+	});
 	if (plan) {
 		const changes = steps.filter(({ outcome }) => outcome === "would run").length;
 		io.stdout(`${changes} step(s) would run; nothing was changed.\n`);
 	} else {
-		io.stdout(`Deployed "${environment.name}".\n`);
+		io.stdout(`Deployed ${subject}.\n`);
 	}
 	return 0;
 };

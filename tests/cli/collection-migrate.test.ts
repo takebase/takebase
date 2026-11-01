@@ -220,6 +220,7 @@ describe("takebase migrate and collection arguments", () => {
 		for (const argv of [
 			["migrate"],
 			["migrate", "rollback"],
+			["migrate", "apply", "--tenant", "acme"],
 			["migrate", "generate"],
 			["migrate", "generate", "--name", "Bad Name"],
 			["migrate", "apply", "--sql"],

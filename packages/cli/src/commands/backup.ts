@@ -19,7 +19,7 @@ import { discardRestore, executeRestore, listRestores, readRestoreProgress } fro
 
 const usage = `takebase backup init [--env <name>]
        takebase backup create (--tenant <id> | --global | --all) [--env <name>]
-       takebase backup list [--env <name>]
+       takebase backup list [--tenant <id>] [--env <name>]
        takebase backup verify (<backup-id> | --latest) [--env <name>]
        takebase backup restore (<backup-id> | --latest) (--tenant <id> | --global) (--dry-run | --confirm <env>) [--env <name>]
        takebase backup restore --discard <restore-id> --confirm <env> [--env <name>]
@@ -53,7 +53,7 @@ Commands:
            count as kept. --plan lists what would go and why the rest stays
 
 Options:
-  --tenant <id>   Back up one tenant (its D1 database and secrets)
+  --tenant <id>   Back up one tenant (its D1 database and secrets); list: only its backups
   --global        Back up the global D1 database
   --all           Back up the global database and every tenant
   --latest        verify, restore: the newest catalogued backup
@@ -178,8 +178,15 @@ export const backupCommand = (
 			usage: true,
 		});
 	}
-	if (subcommand !== "create" && (values.tenant !== undefined || values.global === true || values.all === true)) {
-		throw new CliError("--tenant, --global and --all are for backup create and restore only", { usage: true });
+	if (subcommand === "list" && (values.global === true || values.all === true)) {
+		throw new CliError("backup list filters by --tenant only", { usage: true });
+	}
+	if (
+		subcommand !== "create" &&
+		subcommand !== "list" &&
+		(values.tenant !== undefined || values.global === true || values.all === true)
+	) {
+		throw new CliError("--tenant, --global and --all are for backup create, list and restore only", { usage: true });
 	}
 	return runBackup(io, deps, values, subcommand, id);
 };
@@ -350,9 +357,11 @@ const runBackup = async (
 		if (!isBackupId(backupId)) throw new CliError(`"${backupId}" is not a backup id`, { usage: true });
 		return reportVerification(io, await verifyBackup(store, backupId));
 	}
-	const listed = await listBackups(store);
+	const listed = await listBackups(store, values.tenant === undefined ? {} : { tenant: values.tenant });
 	if (listed.length === 0) {
-		io.stdout(`No backups in ${bucket} (${environment.name}).\n`);
+		io.stdout(
+			`No backups${values.tenant === undefined ? "" : ` of tenant ${values.tenant}`} in ${bucket} (${environment.name}).\n`,
+		);
 		return 0;
 	}
 	io.stdout(`Backups in ${bucket} (${environment.name}), newest first, verified now:\n`);

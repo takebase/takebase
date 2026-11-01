@@ -1,13 +1,24 @@
 import type { RealtimeAdapter } from "@takebase/core";
-import { type FirebaseClient, FirebaseRtdbError, isValidKey } from "@takebase/firebase-rtdb";
+import { FirebaseRtdbError, isValidKey } from "@takebase/firebase-rtdb";
 import { TENANT_REVOCATION } from "./rules.ts";
 
 // The Firebase implementation of core's RealtimeAdapter, writing the layout in
 // rules.ts as the tenant's dispatcher user. The rules enforce every ordering
 // guarantee; the adapter only avoids writes that would be rejected or useless.
 
+// The calls the adapter makes; @takebase/firebase-rtdb's client satisfies it. The
+// package bundles that client, so its public types must not name it.
+export type RealtimeDatabaseClient = {
+	get: <T = unknown>(path: string) => Promise<T>;
+	getWithETag: <T = unknown>(path: string) => Promise<{ value: T; etag: string }>;
+	set: (path: string, value: unknown) => Promise<void>;
+	setIfUnchanged: (path: string, value: unknown, etag: string) => Promise<void>;
+	update: (path: string, fields: Record<string, unknown>) => Promise<void>;
+	delete: (path: string) => Promise<void>;
+};
+
 export type FirebaseRealtimeOptions = {
-	client: FirebaseClient;
+	client: RealtimeDatabaseClient;
 	// Returned to the client SDK by the session endpoint: never secret.
 	connection: Readonly<Record<string, string>>;
 	// Compare-and-set rounds before publish gives up and lets the dispatcher retry.

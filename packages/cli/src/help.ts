@@ -8,19 +8,15 @@ export const version = (
 ).version;
 
 const width = Math.max(...commandGroups.map((group) => group.name.length)) + 2;
-const rows = (status: "implemented" | "planned") =>
-	commandGroups
-		.filter((group) => group.status === status)
-		.map((group) => `  ${group.name.padEnd(width)}${group.summary}`)
-		.join("\n");
+const rows = commandGroups.map((group) => `  ${group.name.padEnd(width)}${group.summary}`).join("\n");
 
 export const mainHelp = () => `Takebase CLI ${version}
 
 Usage: takebase <command> [options]
 
 Commands:
-${rows("implemented")}
-${rows("planned") === "" ? "" : `\nPlanned (not implemented yet):\n${rows("planned")}\n`}
+${rows}
+
 Options:
   -h, --help     Show this help
   -v, --version  Show the CLI version

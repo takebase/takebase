@@ -174,7 +174,11 @@ export const deployEnvironment = async (
 	deps: RemoteDeps,
 	project: ProjectConfig,
 	environment: EnvironmentConfig,
-	{ plan = false, report = () => {} }: { plan?: boolean; report?: (step: DeployStep) => void } = {},
+	{
+		plan = false,
+		report = () => {},
+		tenant: onlyTenant,
+	}: { plan?: boolean; report?: (step: DeployStep) => void; tenant?: string } = {},
 ) => {
 	if (!environment.remote) {
 		throw new CliError(`Environment "${environment.name}" is local and is never deployed`, {
@@ -182,6 +186,11 @@ export const deployEnvironment = async (
 		});
 	}
 	const targets = deploymentTargets(project, environment);
+	if (onlyTenant !== undefined && !targets.tenants.some(({ tenant }) => tenant.id === onlyTenant)) {
+		throw new CliError(`Tenant "${onlyTenant}" is not declared in "${environment.name}"`, {
+			hint: "Run `takebase tenant list` to see the declared tenants.",
+		});
+	}
 	checkAccount(deps, project, environment);
 	appSettings(project, environment);
 
@@ -217,9 +226,11 @@ export const deployEnvironment = async (
 		emit({ step: `${label} check`, outcome: "done", detail: `${url} ${answer.status} (attempt ${answer.attempt})` });
 	};
 
-	migrations("global", project.workers.global, environment.globalEnv);
-	const globalUrl = workerUrl(environment, targets.global.workerName);
-	await worker("global", project.workers.global, environment.globalEnv, `${globalUrl}/health`, healthy({}));
+	if (onlyTenant === undefined) {
+		migrations("global", project.workers.global, environment.globalEnv);
+		const globalUrl = workerUrl(environment, targets.global.workerName);
+		await worker("global", project.workers.global, environment.globalEnv, `${globalUrl}/health`, healthy({}));
+	}
 
 	const rows = queryD1(
 		project.workers.global,
@@ -230,8 +241,16 @@ export const deployEnvironment = async (
 	);
 	const registered = new Map(rows.map((row) => [String(row.id), row]));
 	for (const { tenant, worker: tenantWorker } of targets.tenants) {
+		if (onlyTenant !== undefined && tenant.id !== onlyTenant) continue;
 		const label = `tenant ${tenant.id}`;
 		const row = registered.get(tenant.id);
+		// Asked for by name, a tenant that cannot deploy is a failure, not a skip.
+		if (onlyTenant !== undefined && (!tenantWorker || row?.status !== "active")) {
+			throw new CliError(
+				`Tenant "${tenant.id}" cannot be deployed: ${row ? String(row.status) : "it is not provisioned"}`,
+				{ hint: `Run \`takebase tenant provision ${tenant.id} --env ${environment.name}\` first.` },
+			);
+		}
 		if (!tenantWorker || !row) {
 			emit({
 				step: label,
@@ -256,6 +275,8 @@ export const deployEnvironment = async (
 			tenantSecrets(environment, tenant.id),
 		);
 	}
+
+	if (onlyTenant !== undefined) return steps;
 
 	const appUrl = workerUrl(environment, targets.app.workerName);
 	if (plan) {

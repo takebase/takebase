@@ -1,0 +1,28 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "{{name}}-global",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-19",
+	"compatibility_flags": ["nodejs_als"],
+	// The Firebase project whose ID tokens this Worker accepts. A demo-* project only
+	// ever talks to the local Auth emulator. Emulator trust is never configured here.
+	"vars": { "FIREBASE_PROJECT_ID": "demo-{{name}}" },
+	// Local-only identifiers: no remote D1 database is needed to develop.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "{{name}}-global",
+			"database_id": "local-{{name}}-global",
+			"migrations_dir": "../../migrations/global"
+		}
+	],
+	"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "{{name}}-local-backups" }],
+	"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }],
+	"observability": {
+		"enabled": true
+	}
+}

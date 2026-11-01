@@ -25,7 +25,8 @@ Commands:
   apply                   Check history, apply pending migrations locally (wrangler d1 migrations apply --local)
 
 ${targetOptionsHelp}
-Only local databases are supported. Applied migrations are never rewritten or rolled back automatically.
+Only local databases are supported; remote migrations run in takebase deploy and
+takebase tenant provision. Applied migrations are never rewritten or rolled back automatically.
 `;
 
 const options = {
@@ -87,13 +88,19 @@ const apply = (io: CliIo, target: WorkerTarget) => {
 };
 
 export const migrateCommand = (args: string[], io: CliIo) => {
-	const { values, positionals } = parseCommandArgs("migrate", args, options);
+	const { values, positionals } = parseCommandArgs("migrate", args, { ...options, tenant: { type: "string" } });
 	const [subcommand, ...extra] = positionals;
 	if (values.help === true) {
 		io.stdout(help);
 		return 0;
 	}
 	const usageError = (message: string) => new CliError(message, { usage: true, hint: `Usage: ${usage}` });
+	if (values.tenant !== undefined) {
+		throw new CliError("migrate acts on one Worker's local database, not on a tenant by name", {
+			usage: true,
+			hint: `Remotely, \`takebase deploy --tenant ${values.tenant} --env <name>\` applies its migrations. Locally, use --env <wrangler env>.`,
+		});
+	}
 	if (subcommand === undefined) throw usageError("Missing migrate command");
 	if (!["generate", "inspect", "apply"].includes(subcommand))
 		throw usageError(`Unknown migrate command "${subcommand}"`);
