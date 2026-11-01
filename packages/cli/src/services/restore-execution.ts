@@ -41,6 +41,8 @@ export type RestoreProgress = {
 	started: string;
 	updated: string;
 	proof: { tables: number; rows: number; secrets: number; opened: number } | null;
+	// A D1-only restore (--without-secrets): the namespace was never part of it.
+	withoutSecrets?: boolean;
 };
 
 const steps: readonly RestoreStep[] = ["planned", "created", "importing-d1", "imported-d1", "imported-kv", "proved"];
@@ -212,14 +214,21 @@ export const executeRestore = async (
 		started: now,
 		updated: now,
 		proof: null,
+		withoutSecrets: plan.withoutSecrets,
 	};
+	if ((progress.withoutSecrets === true) !== plan.withoutSecrets) {
+		throw new CliError(
+			`Restore ${plan.restoreId} was started ${progress.withoutSecrets === true ? "with" : "without"} --without-secrets`,
+			{ hint: "Rerun it the same way, or discard its target first. Nothing more was changed." },
+		);
+	}
 	if (progress.backupId !== plan.backupId) {
 		throw new CliError(`Restore ${plan.restoreId} was started from backup ${progress.backupId}`);
 	}
 	if (progress.step === "planned") save(project, progress, "planned");
 	const label = plan.target.kind === "global" ? "global" : `tenant:${plan.target.tenantId}`;
 	const d1Part = partOf(manifest, "d1", label);
-	const kvPart = plan.target.kind === "tenant" ? partOf(manifest, "kv", label) : undefined;
+	const kvPart = plan.target.kind === "tenant" && !plan.withoutSecrets ? partOf(manifest, "kv", label) : undefined;
 	if (d1Part === undefined) throw new CliError(`Backup ${plan.backupId} holds no D1 export for ${label}`);
 
 	if (!after(progress, "created")) {
@@ -326,7 +335,8 @@ const proveRestore = async (
 
 	let secrets = 0;
 	let opened = 0;
-	const kvPart = progress.target.kind === "tenant" ? partOf(manifest, "kv", label) : undefined;
+	const kvPart =
+		progress.target.kind === "tenant" && progress.withoutSecrets !== true ? partOf(manifest, "kv", label) : undefined;
 	if (kvPart !== undefined && target.tenant !== undefined) {
 		const backedUp = new Map(
 			(await readPart(store, kvPart))

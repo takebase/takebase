@@ -55,7 +55,15 @@
 				"CORS_ORIGINS": "https://takebase-prod-app.info8841.workers.dev,https://takebase-prod-admin.pages.dev"
 			},
 			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-prod-backups" }],
-			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728229", "simple": { "limit": 60, "period": 60 } }]
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728229", "simple": { "limit": 60, "period": 60 } }],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "takebase-prod-global",
+					"database_id": "f561c9df-674a-4496-b49b-d0b6ffebd900",
+					"migrations_dir": "../../../migrations/global"
+				}
+			]
 		}
 	},
 	"observability": {

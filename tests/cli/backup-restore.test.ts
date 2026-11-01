@@ -288,6 +288,67 @@ describe("takebase backup restore --confirm (R-6-4-01, S-6-4-01)", () => {
 	});
 });
 
+describe("takebase backup restore --without-secrets (SEGU-231)", () => {
+	const withoutKey = async () => {
+		const backup = await backedUp();
+		const { DATA_KEY_V2_TENANT_A: _gone, ...rest } = backup.secrets;
+		writeSecrets(rest);
+		return backup;
+	};
+
+	it("restores and proves only the database when the data key has no copy, and the default still blocks", async () => {
+		const { cf, backupId, secrets, plaintexts, command } = await withoutKey();
+		const r2Before = new Map(cf.r2);
+		const tenant = ["restore", backupId, "--tenant", "tenant-a"];
+		const blocked = await command(...tenant, "--confirm", "staging");
+		expect(blocked.code).toBe(1);
+		expect(blocked.text).toContain("data key v2 of tenant-a is in neither the keys file nor the escrow");
+		expect(writes(blocked.calls)).toEqual([]);
+
+		const dryRun = await command(...tenant, "--dry-run", "--without-secrets");
+		expect(dryRun.code, dryRun.text).toBe(0);
+		expect(dryRun.text).toContain("2 ciphertext secrets NOT restored");
+		expect(writes(dryRun.calls)).toEqual([]);
+
+		const name = `takebase-staging-restore-${backupId.toLowerCase()}-tenant-a`;
+		const run = await command(...tenant, "--confirm", "staging", "--without-secrets");
+		expect(run.code, run.text).toBe(0);
+		expect(run.text).toContain(`proved in ${name}`);
+		expect(run.text).toContain("secrets not restored");
+		expect(cf.databases.get(name)?.sql).toContain('INSERT INTO "policies"');
+		expect([...cf.namespaces.values()].some(({ title }) => title === name)).toBe(false);
+		expect(run.calls.filter(({ args }) => args[0] === "kv" && args.includes("create"))).toEqual([]);
+		expect(sourceWrites(run.calls)).toEqual([]);
+		expect(cf.r2).toEqual(r2Before);
+		for (const value of [...Object.values(secrets), ...plaintexts]) expect(run.text).not.toContain(value);
+
+		const discarded = await command(
+			"restore",
+			"--discard",
+			`${backupId.toLowerCase()}-tenant-a`,
+			"--confirm",
+			"staging",
+		);
+		expect(discarded.code, discarded.text).toBe(0);
+		expect(cf.databases.has(name)).toBe(false);
+	});
+
+	it("still blocks a damaged backup, and is refused outside a tenant restore", async () => {
+		const { cf, backupId, command } = await withoutKey();
+		const global = await command("restore", backupId, "--global", "--dry-run", "--without-secrets");
+		expect(global.text).toContain("--without-secrets is for backup restore --tenant <id> only");
+		expect(global.calls).toEqual([]);
+		const verify = await command("verify", backupId, "--without-secrets");
+		expect(verify.text).toContain("--without-secrets is for backup restore --tenant <id> only");
+		const key = [...cf.r2.keys()].find((each) => each.endsWith("tenants/tenant-a/d1.sql")) ?? "";
+		cf.r2.set(key, Buffer.from(String(cf.r2.get(key)).replace("row-1", "row-2")));
+		const damaged = await command("restore", backupId, "--tenant", "tenant-a", "--dry-run", "--without-secrets");
+		expect(damaged.code).toBe(1);
+		expect(damaged.text).toContain("checksum mismatch");
+		expect(writes(damaged.calls)).toEqual([]);
+	});
+});
+
 describe("the import order of a restored database", () => {
 	it("loads a child-before-parent export where foreign keys are enforced, and fires no trigger", () => {
 		// The shape of Wrangler's global export: memberships (child) is created and

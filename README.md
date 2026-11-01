@@ -2,7 +2,7 @@
 
 Takebase is a Cloudflare-native, PocketBase-inspired backend framework: TypeScript and Hono on Workers, with an independent D1 database per tenant, Firebase Auth for identity and Firebase RTDB for change notifications.
 
-> Early development. Nothing here is published or production-ready yet.
+> Early development. Nothing here is published or ready for real production use. The one [production environment](#production) holds only a synthetic tenant.
 
 ## Installing
 
@@ -132,6 +132,51 @@ New staging tenants are provisioned with `takebase tenant create <id> --name <na
 Teardown is manual and is never run by these scripts. Pin every Wrangler call to the account, because the account is shared: prefix it with `CLOUDFLARE_ACCOUNT_ID=<value from ops/.staging.env>`.
 - Cloudflare: `wrangler delete <name>` for `takebase-staging-global`, `-app`, `-tenant-a`, `-tenant-b` and `-tenant-c`, then `wrangler d1 delete <name>` for `takebase-staging-global`, `-tenant-a`, `-tenant-b` and `-tenant-c`.
 - Firebase: `firebase database:instances:delete <name> --project takebase-eb6e3` for the three `takebase-staging-tenant-*` databases, then delete the staging users (including the dispatchers) in the Firebase console.
+
+## Production
+
+One production environment is deployed, and it holds one synthetic tenant, `prod-smoke`, with no real users or data. Treat it as a proof of delivery and recovery, not as a service in use.
+
+| Part | URL |
+| --- | --- |
+| Global Worker | https://takebase-prod-global.info8841.workers.dev |
+| Tenant `prod-smoke` | https://takebase-prod-prod-smoke.info8841.workers.dev |
+| App | https://takebase-prod-app.info8841.workers.dev |
+| Admin | https://takebase-prod-admin.pages.dev |
+
+It shares the staging Cloudflare account and Firebase project (`takebase-eb6e3`), kept apart by the `takebase-prod-` name prefix. Firebase Auth users are therefore shared with staging; roles are not.
+
+```sh
+pnpm production:check         # doctor: configuration, secrets file, resources, migrations
+pnpm production:deploy:plan   # what a deploy would do; changes nothing
+pnpm production:deploy        # migrations, Workers, app and admin, each health-checked
+pnpm production:health
+pnpm smoke:production         # health, API journey, browser journey, then removes its records
+```
+
+`pnpm smoke:production` needs the untracked `ops/.production.env`, and creates its synthetic users' passwords in `ops/.production/`.
+
+### Recovery
+
+```sh
+pnpm production:backup:create                 # global, tenant, ciphertext secrets, configuration
+pnpm production:backup:verify                 # the newest backup, against its manifest
+pnpm production:backup:restore:dry-run        # the tenant, without its secrets
+pnpm production:backup:restore                # into a new takebase-prod-restore-* database, then proved
+pnpm production:backup:restore:global         # the same for the global database
+```
+
+A restore never writes the source. Remove a restore's target with `takebase backup restore --discard <restore-id> --confirm production --env production`.
+
+To roll a Worker back, from its directory with `CLOUDFLARE_ACCOUNT_ID` set: `wrangler versions list --env <env>`, then `wrangler rollback <version-id> --env <env>`. Roll forward the same way, naming the newer version. `wrangler d1 time-travel info <database> --env <env>` shows a database's current bookmark.
+
+### Known limits
+
+- **The tenant's data key has no recoverable copy.** It exists only as a secret on the tenant Worker: there is no keys-file line and no escrow. If the Worker's secret is lost, anything encrypted with it is lost. Today that is only the key-check canary. Decide key recovery again before any real tenant.
+- **A tenant restore leaves secrets out.** It needs `--without-secrets` because the key cannot open the backup's ciphertext outside the Worker. The restored tenant starts with no secrets and needs a new data key.
+- **A restore proves the copy, not a cutover.** Restores were proved in isolated databases, which were then deleted. Moving live traffic to a restored database has not been exercised.
+- **Not exercised in production:** `wrangler d1 time-travel restore` and a rollback of the admin on Pages. Wrangler offers no Pages rollback command, so that one goes through the Cloudflare dashboard.
+- Smoke records are removed, but their delivery metadata stays in the tenant's outbox.
 
 ## CLI
 
@@ -349,7 +394,7 @@ The pages only read. Rotation, restore and prune need the operator's keys, escro
 
 ## Security
 
-Takebase has had no external audit or formal certification, and its tests do not prove it ready for production. The evidence is automated tests, local emulators and the staging environment. `pnpm smoke:security` runs the boundary journey locally.
+Takebase has had no external audit or formal certification, and its tests do not prove it ready for production. The evidence is automated tests, local emulators, the staging environment and a smoke of the synthetic production tenant. `pnpm smoke:security` runs the boundary journey locally.
 
 ### Model
 

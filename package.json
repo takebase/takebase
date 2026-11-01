@@ -91,8 +91,15 @@
 		"production:backup:init": "takebase backup init --env production",
 		"production:backup:create": "takebase backup create --all --env production",
 		"production:backup:verify": "takebase backup verify --latest --env production",
-		"production:backup:restore:dry-run": "takebase backup restore --latest --tenant prod-smoke --dry-run --env production",
-		"production:backup:restore": "takebase backup restore --latest --tenant prod-smoke --confirm production --env production"
+		"production:backup:restore:dry-run": "takebase backup restore --latest --tenant prod-smoke --dry-run --without-secrets --env production",
+		"production:backup:restore": "takebase backup restore --latest --tenant prod-smoke --confirm production --without-secrets --env production",
+		"production:backup:restore:dry-run:global": "takebase backup restore --latest --global --dry-run --env production",
+		"production:backup:restore:global": "takebase backup restore --latest --global --confirm production --env production",
+		"production:fixtures": "node ops/production-smoke.ts fixtures",
+		"production:journey": "node ops/production-smoke.ts journey",
+		"production:cleanup": "node ops/production-smoke.ts cleanup",
+		"production:e2e": "playwright test --config playwright.production.config.ts",
+		"smoke:production": "bash tests/smoke/production.sh"
 	},
 	"packageManager": "pnpm@12.15.0",
 	"devDependencies": {

@@ -40,6 +40,9 @@ export type RestorePlan = {
 	tables: { name: string; rows: number }[];
 	secrets: number;
 	keyVersions: number[];
+	// The operator chose a D1-only restore: the secrets stay in the backup, no
+	// namespace is created and no data key is needed.
+	withoutSecrets: boolean;
 	problems: string[];
 };
 
@@ -236,10 +239,14 @@ export const planRestore = async (
 	backupId: string,
 	target: RestoreTarget,
 	// A restore with a progress record already created its own target.
-	options: { resuming?: boolean } = {},
+	options: { resuming?: boolean; withoutSecrets?: boolean } = {},
 ): Promise<RestorePlan> => {
 	const restoreId = restoreIdOf(backupId, target);
-	const names = restoreNames(project, environment, { restoreId, target });
+	const withoutSecrets = options.withoutSecrets === true;
+	const names = {
+		...restoreNames(project, environment, { restoreId, target }),
+		...(withoutSecrets ? { namespace: null } : {}),
+	};
 	const plan: RestorePlan = {
 		backupId,
 		environment: environment.name,
@@ -250,6 +257,7 @@ export const planRestore = async (
 		tables: [],
 		secrets: 0,
 		keyVersions: [],
+		withoutSecrets,
 		problems: [],
 	};
 	const fail = (...problems: string[]) => {
@@ -295,7 +303,9 @@ export const planRestore = async (
 	if (target.kind === "tenant" && kv !== undefined) {
 		plan.secrets = kv.count;
 		plan.keyVersions = kv.keyVersions;
-		plan.problems.push(...(await keyProblems(project, environment, target.tenantId, kv, await readPart(store, kv))));
+		if (!withoutSecrets) {
+			plan.problems.push(...(await keyProblems(project, environment, target.tenantId, kv, await readPart(store, kv))));
+		}
 	}
 	if (options.resuming !== true) plan.problems.push(...existingTarget(deps, project, environment, names));
 	return plan;
