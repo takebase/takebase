@@ -3,5 +3,13 @@
 	"compilerOptions": {
 		"types": ["node"]
 	},
-	"include": ["tests", "ops", "vitest.config.ts", "playwright.config.ts", "playwright.staging.config.ts"]
+	"include": [
+		"tests",
+		"ops",
+		"benchmarks",
+		"examples/native-spike",
+		"vitest.config.ts",
+		"playwright.config.ts",
+		"playwright.staging.config.ts"
+	]
 }

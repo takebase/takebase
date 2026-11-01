@@ -6,6 +6,7 @@ declare global {
 		interface Env {
 			TEST_MIGRATIONS: D1Migration[];
 			OTHER_TENANT_DB: D1Database;
+			PORTABILITY_DB: D1Database;
 			OTHER_TENANT_SECRETS: KVNamespace;
 			// A random data key per run (vitest.config.ts); a Worker secret in real deployments.
 			DATA_KEY_V1: string;

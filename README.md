@@ -341,6 +341,10 @@ Takebase has had no external audit or formal certification, and its tests do not
 
 **Private contact: not set yet.** Until one is published here, do not post exploit details in a public issue, because this repository is mirrored publicly. Reports should cover the affected component and version, the steps to reproduce and the impact. Please leave out real user data, keys and tokens.
 
+## Performance
+
+[`benchmarks/README.md`](benchmarks/README.md) holds measured latency, bundle sizes, provider limits, and how the collection contract behaves on native SQLite. They are measurements, not budgets. The native spike is a feasibility check, not a supported runtime; D1 stays the source of truth.
+
 ## Contributing
 
 Development happens on the Gitea repository, which runs CI and mirrors to GitHub. Branches are named `feature/<ISSUE-KEY>-<description>` and commit subjects start with the issue key.

@@ -6,6 +6,7 @@ const migrations = await readD1Migrations(new URL("../../../migrations/tenant", 
 
 // Run the same suite once per tenant environment; each has its own D1 database.
 // OTHER_TENANT_DB is a test-only second tenant database used to prove isolation.
+// PORTABILITY_DB starts empty for the scenario shared with the native spike.
 // GLOBAL stands in for an unavailable global Worker: it implements no RPC, so
 // every membership check through the deployed Worker must fail closed.
 // TEST_FIREBASE_EMULATORS turns on the realtime end-to-end tests inside
@@ -23,7 +24,10 @@ const tenantProject = (environment: "tenant-a" | "tenant-b") => ({
 					TEST_FIREBASE_EMULATORS: emulators,
 					DATA_KEY_V1: randomBytes(32).toString("base64"),
 				},
-				d1Databases: { OTHER_TENANT_DB: `${environment}-other-tenant` },
+				d1Databases: {
+					OTHER_TENANT_DB: `${environment}-other-tenant`,
+					PORTABILITY_DB: `${environment}-portability`,
+				},
 				kvNamespaces: { OTHER_TENANT_SECRETS: `${environment}-other-tenant-secrets` },
 				serviceBindings: { GLOBAL: () => new Response("global Worker unavailable", { status: 503 }) },
 			},
