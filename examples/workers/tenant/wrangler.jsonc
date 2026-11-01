@@ -134,6 +134,47 @@
 				}
 			],
 			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
+		},
+		"production-prod-smoke": {
+			"name": "takebase-prod-prod-smoke",
+			"vars": {
+				"TENANT_ID": "prod-smoke",
+				"FIREBASE_DATABASE_URL": "https://takebase-prod-prod-smoke.firebaseio.com",
+				"CORS_ORIGINS": "https://takebase-prod-app.info8841.workers.dev,https://takebase-prod-admin.pages.dev",
+				"TAKEBASE_ENV": "production",
+				"DATA_KEY_VERSION": "1"
+			},
+			"services": [
+				{
+					"binding": "GLOBAL",
+					"service": "takebase-prod-global",
+					"entrypoint": "MembershipEntrypoint"
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "takebase-prod-prod-smoke",
+					"database_id": "65ab9a0b-d62b-4175-9592-f819326695bc",
+					"migrations_dir": "../../../migrations/tenant"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "SECRETS",
+					"id": "40d02caf2a3b4916b1bad215f923d528"
+				}
+			],
+			"ratelimits": [
+				{
+					"name": "RATE_LIMITER",
+					"namespace_id": "728229",
+					"simple": {
+						"limit": 60,
+						"period": 60
+					}
+				}
+			]
 		}
 	},
 	"observability": {

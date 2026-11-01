@@ -60,6 +60,28 @@
 				"tenant-a": { "name": "Tenant A", "env": "staging-tenant-a" },
 				"tenant-b": { "name": "Tenant B", "env": "staging-tenant-b" }
 			}
+		},
+		// Production (SEGU-231): the same Firebase project and Cloudflare account as
+		// staging, apart by name, and one synthetic tenant. No key escrow: the
+		// tenant's data key lives on its Worker only, and it holds no real secrets.
+		// Decide key recovery again before any real tenant.
+		"production": {
+			"remote": true,
+			"firebaseProject": "takebase-eb6e3",
+			"namePrefix": "takebase-prod-",
+			"workersSubdomain": "info8841",
+			"globalEnv": "production",
+			"appEnv": "production",
+			"adminProject": "takebase-prod-admin",
+			"secretsFile": "ops/.production.env",
+			"backupBucket": "takebase-prod-backups",
+			// Staging uses the default namespace in this same account.
+			"rateLimitNamespace": "728229",
+			"dispatcherPasswordKey": "PRODUCTION_PASSWORD_DISPATCHER_{TENANT}",
+			"dispatcherEmail": "takebase-prod-dispatcher-{tenant}@example.test",
+			"tenants": {
+				"prod-smoke": { "name": "Production Smoke", "env": "production-prod-smoke" }
+			}
 		}
 	}
 }

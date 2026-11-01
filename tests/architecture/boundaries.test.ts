@@ -56,22 +56,50 @@ describe("runtime boundaries", () => {
 	// Local environments use local-only D1 ids; the approved staging environments
 	// (SEGU-218) use their own remote databases, named takebase-staging-*.
 	const isStaging = (name: string) => name.startsWith("staging");
+	const isProduction = (name: string) => name.startsWith("production");
 	const tenantEnvs = (staging: boolean) => [
 		...(staging ? [] : [tenant]),
 		...Object.entries(tenant.env ?? {})
-			.filter(([name]) => isStaging(name) === staging)
+			.filter(([name]) => !isProduction(name) && isStaging(name) === staging)
 			.map(([, env]) => env),
 	];
 	const globalStaging = global.env?.staging;
 
+	it("production uses only its own takebase-prod-* resources, with no secret in vars", () => {
+		const globalProduction = global.env?.production;
+		const environments = Object.entries(tenant.env ?? {}).filter(([name]) => isProduction(name));
+		expect(environments.map(([name]) => name)).toEqual(["production-prod-smoke"]);
+		for (const [, env] of environments) {
+			expect(env.name).toMatch(/^takebase-prod-/);
+			expect(env.services).toEqual([
+				{ binding: "GLOBAL", service: globalProduction?.name, entrypoint: "MembershipEntrypoint" },
+			]);
+			expect(env.vars?.FIREBASE_DATABASE_URL).toMatch(/^https:\/\/takebase-prod-[a-z0-9-]+\.firebaseio\.com$/);
+			expect(env.vars?.TAKEBASE_ENV).toBe("production");
+			expect(Object.keys(env.vars ?? {})).toEqual([
+				"TENANT_ID",
+				"FIREBASE_DATABASE_URL",
+				"CORS_ORIGINS",
+				"TAKEBASE_ENV",
+				"DATA_KEY_VERSION",
+			]);
+		}
+		const databases = [...environments.map(([, env]) => env), globalProduction ?? {}].flatMap(
+			(env) => env.d1_databases ?? [],
+		);
+		expect(databases).toHaveLength(2);
+		for (const db of databases) expect(db.database_name).toMatch(/^takebase-prod-/);
+		const others = [...tenantEnvs(false), ...tenantEnvs(true), global, globalStaging ?? {}].flatMap(
+			(env) => env.d1_databases ?? [],
+		);
+		for (const db of databases) expect(others.map(({ database_id }) => database_id)).not.toContain(db.database_id);
+	});
+
 	it("each tenant environment has its own D1 database: local ids locally, takebase-staging-* in staging", () => {
-		expect(Object.keys(tenant.env ?? {}).sort()).toEqual([
-			"staging-tenant-a",
-			"staging-tenant-b",
-			"tenant-a",
-			"tenant-b",
-		]);
-		expect(Object.keys(global.env ?? {})).toEqual(["staging"]);
+		// Production's tenant environment is written by `takebase tenant provision`.
+		const tenantNames = Object.keys(tenant.env ?? {}).filter((name) => !name.startsWith("production-"));
+		expect(tenantNames.sort()).toEqual(["staging-tenant-a", "staging-tenant-b", "tenant-a", "tenant-b"]);
+		expect(Object.keys(global.env ?? {}).sort()).toEqual(["production", "staging"]);
 		const local = [...tenantEnvs(false), global].flatMap((env) => env.d1_databases ?? []);
 		const staging = [...tenantEnvs(true), globalStaging ?? {}].flatMap((env) => env.d1_databases ?? []);
 		for (const env of [...tenantEnvs(false), ...tenantEnvs(true)]) {

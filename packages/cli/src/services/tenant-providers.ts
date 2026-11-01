@@ -77,7 +77,7 @@ export const tenantPlan = async (
 				services,
 				d1_databases: [{ binding: "DB", database_name: `takebase-${tenant.id}`, database_id, migrations_dir }],
 				kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
-				ratelimits: tenantRateLimits,
+				ratelimits: tenantRateLimits(environment.rateLimitNamespace),
 			}),
 			url: `http://localhost:${tenant.port}`,
 		};
@@ -106,7 +106,7 @@ export const tenantPlan = async (
 			services,
 			d1_databases: [{ binding: "DB", database_name: name, database_id, migrations_dir }],
 			kv_namespaces: [{ binding: "SECRETS", id: secretsNamespaceId }],
-			ratelimits: tenantRateLimits,
+			ratelimits: tenantRateLimits(environment.rateLimitNamespace),
 		}),
 		url: workerUrl(environment, name),
 	};

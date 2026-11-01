@@ -1,5 +1,7 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CliError } from "../errors.ts";
+import { insertJsoncProperty } from "../jsonc.ts";
 import type { EnvironmentConfig, ProjectConfig, TenantConfig } from "../project-config.ts";
 import { readSecretsFile } from "../secrets-file.ts";
 import { outputTail } from "../worker-target.ts";
@@ -9,6 +11,7 @@ import {
 	pagesUrl,
 	parseToolJson,
 	queryD1,
+	readWranglerFile,
 	type WorkerEnvironment,
 	workerEnvironment,
 	workerUrl,
@@ -25,7 +28,8 @@ import {
 } from "./remote-workers.ts";
 
 // `takebase deploy` and `takebase build`. Deploy runs in a fixed order and
-// stops at the first failure: global migrations, the global Worker and its
+// stops at the first failure: a new environment's global D1 database (created
+// once, its binding written to wrangler.jsonc), global migrations, the global Worker and its
 // health, then each registered active tenant (migrations, Worker, health),
 // then the app (built with the environment's settings) and its page, then the
 // static admin (built the same way) on Cloudflare Pages and its page. Every
@@ -95,6 +99,43 @@ export const checkAccount = (deps: RemoteDeps, project: ProjectConfig, environme
 			hint: `Run \`wrangler login\` with the right user, or fix ${environment.secretsFile}. Nothing was changed.`,
 		});
 	}
+};
+
+// A new environment's global Wrangler environment has no D1 binding: its database
+// ID does not exist until now. Reuses a database of that name (a rerun after a
+// failure), or creates it, then writes the binding.
+const createGlobalDatabase = (deps: RemoteDeps, project: ProjectConfig, environment: EnvironmentConfig) => {
+	const dir = project.workers.global;
+	const env = environment.globalEnv;
+	if (env === undefined) throw new CliError("A new global D1 database needs globalEnv in takebase.jsonc");
+	const name = `${environment.namePrefix ?? ""}global`;
+	assertOwned(environment, "global D1 database", name);
+	const wrangler = (args: string[], what: string) => {
+		const result = deps.run(dir, "wrangler", args, cloudflareEnv(environment));
+		if (result.status !== 0) throw new CliError(`${what} failed:\n${outputTail(result.output)}`);
+		return result;
+	};
+	const listed = parseToolJson(wrangler(["d1", "list", "--json"], "wrangler d1 list").stdout);
+	const existing = Array.isArray(listed)
+		? (listed as { name?: string; uuid?: string }[]).find((database) => database.name === name)?.uuid
+		: undefined;
+	const created = existing
+		? undefined
+		: wrangler(["d1", "create", name, "--update-config=false"], "wrangler d1 create").output;
+	const id = existing ?? /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(created ?? "")?.[0];
+	if (id === undefined) throw new CliError(`wrangler d1 create printed no database id:\n${outputTail(created ?? "")}`);
+	const top = readWranglerFile(dir).d1_databases;
+	const migrations_dir = Array.isArray(top) ? (top[0] as { migrations_dir?: unknown })?.migrations_dir : undefined;
+	if (typeof migrations_dir !== "string")
+		throw new CliError("The global Worker's top-level D1 binding has no migrations_dir");
+	const path = join(dir, "wrangler.jsonc");
+	writeFileSync(
+		path,
+		insertJsoncProperty(readFileSync(path, "utf8"), ["env", env], "d1_databases", [
+			{ binding: "DB", database_name: name, database_id: id, migrations_dir },
+		]),
+	);
+	return { name, created: existing === undefined };
 };
 
 // The app's settings are baked in at build time.
@@ -226,19 +267,40 @@ export const deployEnvironment = async (
 		emit({ step: `${label} check`, outcome: "done", detail: `${url} ${answer.status} (attempt ${answer.attempt})` });
 	};
 
+	// Without a global database yet, a plan cannot read migrations or tenants from it.
+	const newEnvironment = targets.global.d1.length === 0;
+	if (newEnvironment && onlyTenant !== undefined) {
+		throw new CliError(`"${environment.name}" has no global D1 database yet`, {
+			hint: `Run \`takebase deploy --env ${environment.name}\` first.`,
+		});
+	}
 	if (onlyTenant === undefined) {
-		migrations("global", project.workers.global, environment.globalEnv);
+		if (newEnvironment && plan) {
+			const name = `${environment.namePrefix ?? ""}global`;
+			assertOwned(environment, "global D1 database", name);
+			emit({ step: "global D1 database", outcome: "would run", detail: `create ${name}` });
+			emit({ step: "global migrations", outcome: "would run", detail: "all, on the new database" });
+		} else {
+			if (newEnvironment) {
+				const { name, created } = createGlobalDatabase(deps, project, environment);
+				emit({ step: "global D1 database", outcome: "done", detail: `${created ? "created" : "reused"} ${name}` });
+			}
+			migrations("global", project.workers.global, environment.globalEnv);
+		}
 		const globalUrl = workerUrl(environment, targets.global.workerName);
 		await worker("global", project.workers.global, environment.globalEnv, `${globalUrl}/health`, healthy({}));
 	}
 
-	const rows = queryD1(
-		project.workers.global,
-		environment.globalEnv,
-		environment,
-		"select id, status, url from tenants order by id",
-		deps.run,
-	);
+	const rows =
+		newEnvironment && plan
+			? []
+			: queryD1(
+					project.workers.global,
+					environment.globalEnv,
+					environment,
+					"select id, status, url from tenants order by id",
+					deps.run,
+				);
 	const registered = new Map(rows.map((row) => [String(row.id), row]));
 	for (const { tenant, worker: tenantWorker } of targets.tenants) {
 		if (onlyTenant !== undefined && tenant.id !== onlyTenant) continue;

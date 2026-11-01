@@ -21,7 +21,7 @@ const usage = `takebase backup init [--env <name>]
        takebase backup create (--tenant <id> | --global | --all) [--env <name>]
        takebase backup list [--tenant <id>] [--env <name>]
        takebase backup verify (<backup-id> | --latest) [--env <name>]
-       takebase backup restore (<backup-id> | --latest) (--tenant <id> | --global) (--dry-run | --confirm <env>) [--env <name>]
+       takebase backup restore (<backup-id> | --latest) (--tenant <id> | --global) (--dry-run | --confirm <env>) [--without-secrets] [--env <name>]
        takebase backup restore --discard <restore-id> --confirm <env> [--env <name>]
        takebase backup prune --keep <n> (--plan | --confirm <env>) [--env <name>]`;
 
@@ -46,7 +46,10 @@ Commands:
            database and the ciphertext secrets, and proves the result: the
            same schema and rows in every table, the same envelopes, each
            opened by the tenant's key. Rerun the same command to continue an
-           interrupted restore; --discard removes a restore target
+           interrupted restore; --discard removes a restore target.
+           --without-secrets restores a tenant's database only: for a tenant
+           whose data key has no copy outside its Worker. The secrets stay in
+           the backup, and the restored tenant starts with none
   prune    Delete old backups, keeping per subject (all, global, each tenant)
            the newest --keep verified ones, always the newest verified one,
            and any backup a recorded restore refers to. FAILED backups never
@@ -60,6 +63,7 @@ Options:
   --dry-run       restore: check and print the plan; create and change nothing
   --confirm <env> restore: the environment's name, to create and fill the target
   --discard <id>  restore: remove that restore's target and progress record
+  --without-secrets  restore --tenant: the database only; no KV namespace, no data key
   --keep <n>      prune: verified backups to keep per subject (at least 1)
   --plan          prune: list the decisions; delete nothing
   --env <name>    Environment from takebase.jsonc (default: local)
@@ -67,7 +71,8 @@ Options:
 
 Each part is captured at its own time: a backup is not one atomic snapshot
 across databases and KV. Data keys are never included: a restore needs the key
-versions the manifest lists, from the keys file or the escrow. Locally, stop
+versions the manifest lists, from the keys file or the escrow, unless
+--without-secrets leaves the secrets out. Locally, stop
 the stack first (\`pnpm dev:stack:stop\`).
 `;
 
@@ -80,6 +85,7 @@ const options = {
 	"dry-run": { type: "boolean" },
 	confirm: { type: "string" },
 	discard: { type: "string" },
+	"without-secrets": { type: "boolean" },
 	keep: { type: "string" },
 	plan: { type: "boolean" },
 	help: { type: "boolean", short: "h" },
@@ -150,6 +156,12 @@ export const backupCommand = (
 		}
 		return runPrune(io, deps, values, Number(values.keep));
 	}
+	if (
+		values["without-secrets"] === true &&
+		(subcommand !== "restore" || values.tenant === undefined || values.discard !== undefined)
+	) {
+		throw new CliError("--without-secrets is for backup restore --tenant <id> only", { usage: true });
+	}
 	if (subcommand === "restore") {
 		const confirmed = values.confirm !== undefined;
 		if (values.discard !== undefined) {
@@ -205,7 +217,11 @@ const describePlan = (plan: RestorePlan, shown: (name: string) => string) => {
 		`  schema ${plan.schemaVersion ?? "(none)"}`,
 		...plan.tables.map(({ name, rows }) => `  table  ${name.padEnd(28)} ${String(rows).padStart(8)} rows`),
 	];
-	if (plan.target.kind === "tenant") {
+	if (plan.withoutSecrets) {
+		lines.push(
+			`  ${plan.secrets} ciphertext secrets NOT restored (--without-secrets): the restored tenant starts with none`,
+		);
+	} else if (plan.target.kind === "tenant") {
 		lines.push(
 			`  ${plan.secrets} ciphertext secrets, key versions ${plan.keyVersions.map((v) => `v${v}`).join(", ") || "(none)"}`,
 		);
@@ -229,7 +245,7 @@ const confirmedEnvironment = (io: CliIo, values: { env?: string; confirm?: strin
 const runRestore = async (
 	io: CliIo,
 	deps: RemoteDeps,
-	values: { env?: string; confirm?: string; "dry-run"?: boolean },
+	values: { env?: string; confirm?: string; "dry-run"?: boolean; "without-secrets"?: boolean },
 	id: string | undefined,
 	target: RestoreTarget,
 ) => {
@@ -250,7 +266,10 @@ const runRestore = async (
 		io.stdout(`Remove it with \`takebase backup restore --discard ${restoreId} --confirm ${environment.name}\`.\n`);
 		return 0;
 	}
-	const plan = await planRestore(deps, project, environment, store, backupId, target, { resuming: progress !== null });
+	const plan = await planRestore(deps, project, environment, store, backupId, target, {
+		resuming: progress !== null,
+		withoutSecrets: values["without-secrets"] === true,
+	});
 	const shown = (name: string) => shownTarget(project, environment, name);
 	for (const line of describePlan(plan, shown)) io.stdout(`${line}\n`);
 	if (progress !== null) io.stdout(`  continuing restore ${restoreId} after step "${progress.step}"\n`);
@@ -271,7 +290,7 @@ const runRestore = async (
 	);
 	const proof = done.proof;
 	io.stdout(
-		`Restore ${restoreId}: proved in ${shown(done.database)}${proof === null ? "" : `: ${proof.tables} tables, ${proof.rows} rows equal the backup's${done.target.kind === "tenant" ? `; ${proof.opened} of ${proof.secrets} secrets opened` : ""}`}.\n`,
+		`Restore ${restoreId}: proved in ${shown(done.database)}${proof === null ? "" : `: ${proof.tables} tables, ${proof.rows} rows equal the backup's${done.withoutSecrets === true ? "; secrets not restored" : done.target.kind === "tenant" ? `; ${proof.opened} of ${proof.secrets} secrets opened` : ""}`}.\n`,
 	);
 	io.stdout("The source database, KV namespace and backup were not written.\n");
 	return 0;

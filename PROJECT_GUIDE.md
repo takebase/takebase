@@ -202,6 +202,15 @@ Commands verified in Wave 7-3 (SEGU-230), with the same tool versions, locally o
 - `pnpm e2e:starter` packs, generates, installs, typechecks and serves a project from the tarballs in a temporary directory, which it removes when it stops.
 - `pnpm journey:cli` needs a running `pnpm dev:stack`.
 
+Commands verified in Wave 7-4 (SEGU-231), with the same tool versions, against production on the synthetic tenant `prod-smoke`:
+- `pnpm production:deploy:plan`, `production:backup:init`, `production:deploy`, `production:provision:plan`, `production:provision`, `production:secrets:init`, `production:check` and `production:health`. The first deploy creates the global D1 database and writes its binding to `wrangler.jsonc`.
+- `pnpm production:fixtures`, `production:journey`, `production:e2e`, `production:cleanup` and `smoke:production`. In this run Playwright reached the deployed app from the agent's shell, so the browser step passed there too.
+- `pnpm production:backup:create`, `production:backup:verify`, `production:backup:restore:dry-run`, `production:backup:restore` and `production:backup:restore:global`, then `takebase backup restore --discard <restore-id> --confirm production --env production`.
+- `takebase backup restore --without-secrets` restores a tenant's D1 only. Production needs it: the tenant's data key lives only on its Worker, so `pnpm production:backup:restore` sets it.
+- From `examples/workers/tenant`: `wrangler versions list`, `wrangler rollback <version-id>` and `wrangler d1 time-travel info`, with `--env production-prod-smoke` and `CLOUDFLARE_ACCOUNT_ID` from the secrets file.
+
+Not exercised: `wrangler d1 time-travel restore`, a Pages rollback, and a cutover to a restored database.
+
 `takebase.jsonc` names the environments. Remote commands refuse names outside `namePrefix` and pin Wrangler to `CLOUDFLARE_ACCOUNT_ID` from the secrets file. `staging:migrate` is gone; `staging:deploy` and `staging:check` call the CLI.
 
 ## Git branches and Gitea CI mapping

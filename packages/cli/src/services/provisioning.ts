@@ -18,10 +18,11 @@ export type WorkerBindings = {
 	ratelimits?: { name: string; namespace_id: string; simple: { limit: number; period: number } }[];
 };
 
-// One namespace for every tenant: keys carry the tenant's id. Wrangler's account
-// is shared, so the id is an unusual one; the same id elsewhere would share counters.
-export const tenantRateLimits: NonNullable<WorkerBindings["ratelimits"]> = [
-	{ name: "RATE_LIMITER", namespace_id: "728228", simple: { limit: 60, period: 60 } },
+// One namespace for every tenant of an environment: keys carry the tenant's id.
+// Wrangler's account is shared, so the id is an unusual one; the same id elsewhere
+// would share counters, so an environment beside another sets `rateLimitNamespace`.
+export const tenantRateLimits = (namespace = "728228"): NonNullable<WorkerBindings["ratelimits"]> => [
+	{ name: "RATE_LIMITER", namespace_id: namespace, simple: { limit: 60, period: 60 } },
 ];
 
 // What SEGU-223 added to every tenant environment. An environment provisioned

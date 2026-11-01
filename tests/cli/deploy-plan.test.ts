@@ -225,6 +225,40 @@ describe("deploy and remote provisioning plans (recording runner)", () => {
 		);
 	});
 
+	it("a new environment's global database: the plan only reads, a deploy creates it once and writes its binding", async () => {
+		const { config } = project();
+		const path = join(root, "global/wrangler.jsonc");
+		const wrangler = JSON.parse(readFileSync(path, "utf8"));
+		wrangler.d1_databases = [{ binding: "DB", database_name: "x", database_id: "x", migrations_dir: "migrations" }];
+		delete wrangler.env.staging.d1_databases;
+		writeFileSync(path, JSON.stringify(wrangler));
+		const environment = resolveEnvironment(config, "staging");
+
+		const planned = recorder();
+		const steps = await deployEnvironment(planned.deps, config, environment, { plan: true });
+		expect(planned.calls.filter((call) => !readOnly(call))).toEqual([]);
+		expect(steps.slice(0, 2).map(({ step }) => step)).toEqual(["global D1 database", "global migrations"]);
+		expect(readFileSync(path, "utf8")).toBe(JSON.stringify(wrangler));
+		await expect(deployEnvironment(planned.deps, config, environment, { tenant: "tenant-a" })).rejects.toThrow(
+			/no global D1 database yet/,
+		);
+
+		const id = "11111111-2222-4333-8444-555555555555";
+		const real = recorder();
+		const run = real.deps.run;
+		real.deps.run = (dir, tool, args, env) => {
+			const result = run(dir, tool, args, env);
+			return args[0] === "d1" && args[1] === "create" ? { ...result, output: `"database_id": "${id}"` } : result;
+		};
+		await deployEnvironment(real.deps, config, environment);
+		const creates = real.calls.filter(({ args }) => args[0] === "d1" && args[1] === "create");
+		expect(creates.map(({ args }) => args[2])).toEqual(["takebase-staging-global"]);
+		expect(creates[0]?.env.CLOUDFLARE_ACCOUNT_ID).toBe(account);
+		expect(JSON.parse(readFileSync(path, "utf8")).env.staging.d1_databases).toEqual([
+			{ binding: "DB", database_name: "takebase-staging-global", database_id: id, migrations_dir: "migrations" },
+		]);
+	});
+
 	it("deploy --tenant touches that tenant only, and refuses one it cannot deploy", async () => {
 		const { config, environment } = project();
 		const real = recorder();
