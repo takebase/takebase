@@ -29,6 +29,9 @@ node_modules/
 # Staging operator values (generated passwords, local copies of staging config)
 /ops/.staging.env
 /ops/.staging/
+# Production operator values (generated passwords, keys, web API key)
+/ops/.production.env
+/ops/.production/
 # Local tenant data keys (`takebase secrets init --env local`)
 /ops/.local.env
 

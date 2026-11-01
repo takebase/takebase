@@ -21,6 +21,14 @@
 				"binding": "ASSETS",
 				"directory": ".svelte-kit/cloudflare"
 			}
+		},
+		// Production (SEGU-231), built with its settings by `takebase deploy --env production`.
+		"production": {
+			"name": "takebase-prod-app",
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			}
 		}
 	},
 	"observability": {

@@ -79,7 +79,20 @@
 		"staging:backup:prune": "takebase backup prune --keep 1 --confirm staging --env staging",
 		"staging:journey:backups": "node tests/fixtures/backup-journey.ts --env staging",
 		"staging:benchmark": "node benchmarks/run.ts --env staging",
-		"staging:e2e": "playwright test --config playwright.staging.config.ts"
+		"staging:e2e": "playwright test --config playwright.staging.config.ts",
+		"production:check": "takebase doctor --env production",
+		"production:build": "takebase build --env production",
+		"production:deploy:plan": "takebase deploy --env production --plan",
+		"production:deploy": "takebase deploy --env production --confirm production",
+		"production:health": "takebase health --env production",
+		"production:provision:plan": "takebase tenant provision prod-smoke --env production --plan",
+		"production:provision": "takebase tenant provision prod-smoke --env production",
+		"production:secrets:init": "takebase secrets init prod-smoke --env production",
+		"production:backup:init": "takebase backup init --env production",
+		"production:backup:create": "takebase backup create --all --env production",
+		"production:backup:verify": "takebase backup verify --latest --env production",
+		"production:backup:restore:dry-run": "takebase backup restore --latest --tenant prod-smoke --dry-run --env production",
+		"production:backup:restore": "takebase backup restore --latest --tenant prod-smoke --confirm production --env production"
 	},
 	"packageManager": "pnpm@12.15.0",
 	"devDependencies": {

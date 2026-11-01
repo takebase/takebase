@@ -45,6 +45,17 @@
 			],
 			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-staging-backups" }],
 			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728228", "simple": { "limit": 60, "period": 60 } }]
+		},
+		// Production (SEGU-231). `takebase deploy` creates the D1 database on the first
+		// deploy and writes its binding here.
+		"production": {
+			"name": "takebase-prod-global",
+			"vars": {
+				"FIREBASE_PROJECT_ID": "takebase-eb6e3",
+				"CORS_ORIGINS": "https://takebase-prod-app.info8841.workers.dev,https://takebase-prod-admin.pages.dev"
+			},
+			"r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "takebase-prod-backups" }],
+			"ratelimits": [{ "name": "RATE_LIMITER", "namespace_id": "728229", "simple": { "limit": 60, "period": 60 } }]
 		}
 	},
 	"observability": {

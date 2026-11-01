@@ -35,6 +35,9 @@ export type EnvironmentConfig = {
 	// The private R2 bucket `takebase backup` writes to (SEGU-225): locally a
 	// Wrangler-persisted bucket, remotely one the environment owns by name.
 	backupBucket: string | undefined;
+	// The tenants' rate limit namespace id, when it must differ from the default:
+	// two environments in one Cloudflare account would otherwise share counters.
+	rateLimitNamespace: string | undefined;
 	dispatcherPasswordKey: string | undefined;
 	// Each tenant's dispatcher user, e.g. "takebase-dispatcher+{tenant}@example.test".
 	dispatcherEmail: string;
@@ -142,6 +145,7 @@ export const loadProjectConfig = (cwd: string): ProjectConfig => {
 			keysFile: keysFile === undefined ? undefined : resolve(root, keysFile),
 			escrowDir: escrowDir === undefined ? undefined : resolve(root, escrowDir),
 			backupBucket: optionalText(value.backupBucket, `${path}.backupBucket`),
+			rateLimitNamespace: optionalText(value.rateLimitNamespace, `${path}.rateLimitNamespace`),
 			dispatcherPasswordKey: optionalText(value.dispatcherPasswordKey, `${path}.dispatcherPasswordKey`),
 			dispatcherEmail: text(value.dispatcherEmail, `${path}.dispatcherEmail`),
 			dispatcherPassword: optionalText(value.dispatcherPassword, `${path}.dispatcherPassword`),

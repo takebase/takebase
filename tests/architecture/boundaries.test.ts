@@ -65,13 +65,10 @@ describe("runtime boundaries", () => {
 	const globalStaging = global.env?.staging;
 
 	it("each tenant environment has its own D1 database: local ids locally, takebase-staging-* in staging", () => {
-		expect(Object.keys(tenant.env ?? {}).sort()).toEqual([
-			"staging-tenant-a",
-			"staging-tenant-b",
-			"tenant-a",
-			"tenant-b",
-		]);
-		expect(Object.keys(global.env ?? {})).toEqual(["staging"]);
+		// Production's tenant environment is written by `takebase tenant provision`.
+		const tenantNames = Object.keys(tenant.env ?? {}).filter((name) => !name.startsWith("production-"));
+		expect(tenantNames.sort()).toEqual(["staging-tenant-a", "staging-tenant-b", "tenant-a", "tenant-b"]);
+		expect(Object.keys(global.env ?? {}).sort()).toEqual(["production", "staging"]);
 		const local = [...tenantEnvs(false), global].flatMap((env) => env.d1_databases ?? []);
 		const staging = [...tenantEnvs(true), globalStaging ?? {}].flatMap((env) => env.d1_databases ?? []);
 		for (const env of [...tenantEnvs(false), ...tenantEnvs(true)]) {
